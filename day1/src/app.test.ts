@@ -18,11 +18,11 @@ describe('', () => {
     it('part 1', () => {
         const {elvesText,elvesCalorieText, elves, mostCalories} = compute(text);
         expect(elves.length).toBe(257)
-        expect(mostCalories).toBe("interesting")
+        expect(mostCalories).toBe(74394)
     });
     it('part 2', () => {
         const {elves, topThreeElves} = compute(text);
         expect(elves.length).toBe(257)
-        expect(sum(topThreeElves)).toBe("interesting")
+        expect(sum(topThreeElves)).toBe(212836)
     });
 });

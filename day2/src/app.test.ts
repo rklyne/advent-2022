@@ -100,7 +100,7 @@ describe("day 2", () => {
     });
 
     it("answer part 1", () => {
-      expect(calculateMyScore(data)).toBe("the answer");
+      expect(calculateMyScore(data)).toBe(13484);
     });
   });
   describe("part 2", () => {
@@ -109,7 +109,7 @@ describe("day 2", () => {
     });
 
     it("answer part 2", () => {
-      expect(calculateMyScore(data, myPlayDay2)).toBe("the answer");
+      expect(calculateMyScore(data, myPlayDay2)).toBe(13433);
     });
   });
 });
