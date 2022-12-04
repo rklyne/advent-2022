@@ -1,0 +1,25 @@
+{
+  "name": "blank",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watchAll"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^26.0.4",
+    "@types/ramda": "^0.28.20",
+    "jest": "^26.1.0",
+    "prettier": "^2.8.0",
+    "ts-jest": "^26.1.3",
+    "tslint": "^6.1.2",
+    "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "ramda": "^0.28.0"
+  }
+}
