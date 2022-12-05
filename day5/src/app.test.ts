@@ -9,25 +9,21 @@ const part1 = (data: Setup): string => {
   const [crateStacks, moves] = data;
   moves.forEach(([count, src, dest]) => {
     R.range(0, count).forEach(() =>
-    crateStacks[dest-1].push(crateStacks[src-1].pop())
-    )
-  })
+      crateStacks[dest - 1].push(crateStacks[src - 1].pop())
+    );
+  });
   return readMessage(data);
-}
+};
 
 const part2 = (data: Setup): string => {
   const [crateStacks, moves] = data;
   moves.forEach(([count, src, dest]) => {
-    const moving = []
-    R.range(0, count).forEach(() =>
-      moving.push(crateStacks[src-1].pop())
-    )
-    R.range(0, count).forEach(() =>
-      crateStacks[dest-1].push(moving.pop())
-    )
-  })
+    const moving = [];
+    R.range(0, count).forEach(() => moving.push(crateStacks[src - 1].pop()));
+    R.range(0, count).forEach(() => crateStacks[dest - 1].push(moving.pop()));
+  });
   return readMessage(data);
-}
+};
 
 describe("day 5", () => {
   it("setup worked", () => {
@@ -68,5 +64,4 @@ move 1 from 1 to 2`;
       expect(part2(setup())).toBe("TDGJQTZSL");
     });
   });
-
 });
