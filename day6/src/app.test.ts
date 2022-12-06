@@ -6,16 +6,28 @@ const allDifferent = (input: string): boolean => {
   return input.length == R.uniq(Array.from(input)).length;
 };
 
-const part1 = (input: string): number => {
-  for (const i of R.range(0, input.length - 4)) {
-    const slice = input.slice(i, i + 4);
+const slidingWindowUniqueness = (input: string, windowSize: number) => {
+  for (const i of R.range(0, input.length - windowSize)) {
+    const slice = input.slice(i, i + windowSize);
     const found = allDifferent(slice);
     if (found) {
-      return i + 4;
+      return i + windowSize;
     }
   }
   return -1;
+}
+
+const startOfPacket = (input: string): number => {
+  return slidingWindowUniqueness(input, 4)
 };
+
+const startOfMessage = (input: string): number => {
+  return slidingWindowUniqueness(input, 14)
+}
+
+const part1 = startOfPacket;
+
+const part2 = startOfMessage;
 
 describe("day 6", () => {
   it("knows when 4 characters are different", () => {
@@ -36,6 +48,20 @@ describe("day 6", () => {
 
     it("solved part 1", () => {
       expect(part1(data)).toBe(1804);
+    });
+  });
+
+  describe("part 2", () => {
+    it("can solve the samples", () => {
+      expect(part2("mjqjpqmgbljsphdztnvjfqwrcgsmlb")).toBe(19);
+      expect(part2("bvwbjplbgvbhsrlpgdmjqwftvncz")).toBe(23);
+      expect(part2("nppdvjthqldpwncqszvftbrmjlhg")).toBe(23);
+      expect(part2("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg")).toBe(29);
+      expect(part2("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw")).toBe(26);
+    });
+
+    it("solved part 2", () => {
+      expect(part2(data)).toBe(2508);
     });
   });
 });
