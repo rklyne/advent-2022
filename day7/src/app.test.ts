@@ -34,18 +34,20 @@ class Model {
   parseInput(text: string) {
     const commands = text.split("$ ").map((cmd) => cmd.trim());
     for (const commandText of commands) {
-      if (commandText[0] == 'c') {
-        this.learnFrom({cmd: "cd", input: commandText.split(" ")[1]});
+      if (commandText[0] == "c") {
+        this.learnFrom({ cmd: "cd", input: commandText.split(" ")[1] });
       }
-      if (commandText[0] == 'l') {
-        this.learnFrom({cmd: "ls", output: commandText.slice(2).trim()});
+      if (commandText[0] == "l") {
+        this.learnFrom({ cmd: "ls", output: commandText.slice(2).trim() });
       }
     }
   }
 
   private cd(input: string): void {
     const dirs = this.currentDir()[1];
-    if (input == "..") {
+    if (input == "/") {
+      this.currentDirs = [this.rootDir];
+    } else if (input == "..") {
       this.currentDirs.pop();
     } else if (input in dirs) {
       this.currentDirs.push(dirs[input]);
@@ -58,7 +60,7 @@ class Model {
   private parseLs(text: string, dir: Dir): void {
     text.split("\n").forEach((line) => {
       if (line[0] == "d") {
-        return
+        return;
       }
       const [sizeStr, name] = line.split(" ");
       dir[0].push([name, parseInt(sizeStr)]);
@@ -72,15 +74,19 @@ class Model {
 
       for (const name in dir[1]) {
         const subdir: Dir = dir[1][name];
-        addUp(subdir, prefix + name + "/").forEach((file) => {
+        const subdirName = prefix + name + "/";
+        addUp(subdir, subdirName).forEach((file) => {
           results.push(file);
-          myTotal += file[1];
+          if (file[0] == subdirName) {
+            myTotal += file[1];
+          }
         });
       }
-      results.push([prefix, myTotal])
+      results.push([prefix, myTotal]);
       return results;
     };
-    return addUp(this.rootDir, "");
+    const result = addUp(this.rootDir, "");
+    return result;
   }
 }
 
@@ -90,11 +96,22 @@ const part1 = (input: string): number => {
   model.parseInput(input);
   for (const [name, size] of model.dirSizes()) {
     if (size <= 100000) {
-      total += size
+      total += size;
     }
   }
-  return total
-}
+  return total;
+};
+
+const part2 = (input: string): number => {
+  const model = new Model();
+  model.parseInput(input);
+  const used = model.dirSizes()[model.dirSizes().length - 1][1];
+  const totalSpace = 70000000;
+  const neededFree = 30000000;
+  const actuallyFree = totalSpace - used;
+  const toDelete = neededFree - actuallyFree;
+  return Math.min(...model.dirSizes().map(([name, size]) => size).filter(size => size >= toDelete));
+};
 
 describe("", () => {
   it("can handle a ls command", () => {
@@ -130,9 +147,7 @@ describe("", () => {
     );
   });
 
-
-  describe("part 1", () => {
-    const testData = `$ cd /
+  const testData = `$ cd /
 $ ls
 dir a
 14848514 b.txt
@@ -156,12 +171,30 @@ $ ls
 5626152 d.ext
 7214296 k`;
 
+  describe("part 1", () => {
     it("can solve the sample", () => {
-      expect(part1(testData)).toBe(95437)
-    })
+      expect(part1(testData)).toBe(95437);
+    });
 
     it("has the answer", () => {
-      expect(part1(text)).toBe(1444896)
-    })
-  })
+      expect(part1(text)).toBe(1444896);
+    });
+  });
+
+  describe("part 2", () => {
+    it("has the total size of the sample right", () => {
+      const model = new Model();
+      model.parseInput(testData);
+      const total = model.dirSizes()[model.dirSizes().length - 1][1];
+      expect(total).toBe(48381165);
+    });
+
+    it("can solve the sample", () => {
+      expect(part2(testData)).toBe(24933642);
+    });
+
+    it("has the answer", () => {
+      expect(part2(text)).toBe(404395);
+    });
+  });
 });
