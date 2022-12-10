@@ -78,14 +78,10 @@ const processMove = (pos: Position, dir: Dir): Position => {
   return newHead;
 };
 
-const _step = R.memoizeWith(
-  (n) => n.toString(),
-  (n: number) => {
-    if (n == 0) return 0;
-    return n / Math.abs(n);
-  }
-);
-
+const _step = (n: number) => {
+  if (n == 0) return 0;
+  return n / Math.abs(n);
+};
 const moveRelative = (pos: Position): Position => {
   if (Math.abs(pos[0]) <= 1 && Math.abs(pos[1]) <= 1) {
     return [0, 0];
@@ -93,29 +89,19 @@ const moveRelative = (pos: Position): Position => {
   return [_step(pos[0]), _step(pos[1])];
 };
 
-const processStepOnce = (state: State, idx = 0): State => {
-  state[idx + 1] = R.zipWith(
-    R.add,
-    timer.timed(moveRelative)(
-      R.zipWith(R.subtract, state[idx], state[idx + 1]) as unknown as Position
-    ),
-    state[idx + 1]
-  ) as unknown as Position;
-  return state;
-};
-const processStep0 = (state: State, dir: Dir): State => {
+const processStep = (state: State, dir: Dir): State => {
   state[0] = processMove(state[0], dir);
-  processStepOnce(state, 0);
-  return state;
-};
-const processStep2 = (state: State, dir: Dir): State => {
-  state[0] = processMove(state[0], dir);
-  for (const i of R.range(0, state.length - 1)) {
-    processStepOnce(state, i);
+  for (const idx of R.range(0, state.length - 1)) {
+    state[idx + 1] = R.zipWith(
+      R.add,
+      timer.timed(moveRelative)(
+        R.zipWith(R.subtract, state[idx], state[idx + 1]) as unknown as Position
+      ),
+      state[idx + 1]
+    ) as unknown as Position;
   }
   return state;
 };
-const processStep = processStep2;
 
 export const part1 = (commands: Command[]): number => {
   const seen: Record<string, number> = {};
