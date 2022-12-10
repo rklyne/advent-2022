@@ -10,11 +10,11 @@ type State = Position[];
 
 const timer = new Timer();
 
-const start = (): State=> [
+const start = (): State => [
   [0, 0],
   [0, 0],
 ];
-const start2 =():State => [
+const start2 = (): State => [
   [0, 0],
   [0, 0],
   [0, 0],
@@ -39,14 +39,16 @@ const processCommandsToStates = (
   commands: Command[]
 ): State[] => {
   const states = [];
-  run(state, commands, (newState => {states.push([...newState])}))
+  run(state, commands, (newState) => {
+    states.push([...newState]);
+  });
   return states;
 };
 
 const run = (
   state: State,
   commands: Command[],
-  observe: (state: State) => void,
+  observe: (state: State) => void
 ): void => {
   let newState = state;
   for (const cmd of commands) {
@@ -55,7 +57,7 @@ const run = (
       observe(newState);
     }
   }
-}
+};
 
 const processCommands = (state: State, commands: Command[]): State => {
   const states = processCommandsToStates(state, commands);
@@ -63,7 +65,7 @@ const processCommands = (state: State, commands: Command[]): State => {
 };
 
 const processMove = (pos: Position, dir: Dir): Position => {
-  const newHead: Position = [pos[0], pos[1]]
+  const newHead: Position = [pos[0], pos[1]];
   if (dir == "U") {
     newHead[1] += 1;
   } else if (dir == "D") {
@@ -73,65 +75,62 @@ const processMove = (pos: Position, dir: Dir): Position => {
   } else if (dir == "R") {
     newHead[0] += 1;
   }
-  return newHead
-}
+  return newHead;
+};
 
-const _step = R.memoizeWith((n) => n.toString(), (n: number) => {
-  if (n == 0) return 0;
-  return n / Math.abs(n);
-});
+const _step = R.memoizeWith(
+  (n) => n.toString(),
+  (n: number) => {
+    if (n == 0) return 0;
+    return n / Math.abs(n);
+  }
+);
 
 const moveRelative = (pos: Position): Position => {
-  if (
-    Math.abs(pos[0]) <= 1 &&
-    Math.abs(pos[1]) <= 1
-  ) {
-    return [0, 0]
+  if (Math.abs(pos[0]) <= 1 && Math.abs(pos[1]) <= 1) {
+    return [0, 0];
   }
-  return [
-    _step(pos[0]),
-    _step(pos[1]),
-  ];
-}
+  return [_step(pos[0]), _step(pos[1])];
+};
 
-const processStepOnce = (state: State, idx=0): State => {
-  state[idx+1] = R.zipWith(
+const processStepOnce = (state: State, idx = 0): State => {
+  state[idx + 1] = R.zipWith(
     R.add,
     timer.timed(moveRelative)(
-      R.zipWith(R.subtract, state[idx], state[idx+1]) as unknown as Position
+      R.zipWith(R.subtract, state[idx], state[idx + 1]) as unknown as Position
     ),
-    state[idx+1]
-  ) as unknown as Position
-  return state
+    state[idx + 1]
+  ) as unknown as Position;
+  return state;
 };
 const processStep0 = (state: State, dir: Dir): State => {
-  state[0] = processMove(state[0], dir)
+  state[0] = processMove(state[0], dir);
   processStepOnce(state, 0);
-  return state
+  return state;
 };
 const processStep2 = (state: State, dir: Dir): State => {
   state[0] = processMove(state[0], dir);
-  for (const i of R.range(0, state.length-1)) {
-    processStepOnce(state, i)
+  for (const i of R.range(0, state.length - 1)) {
+    processStepOnce(state, i);
   }
   return state;
 };
-const processStep = processStep2
+const processStep = processStep2;
 
 export const part1 = (commands: Command[]): number => {
-  const seen: Record<string, number>= {}
-  run(start(), commands, (state)=>{
-    seen[state[state.length-1].toString()] = 1
-  })
-  return R.sum(Object.values(seen))
+  const seen: Record<string, number> = {};
+  run(start(), commands, (state) => {
+    seen[state[state.length - 1].toString()] = 1;
+  });
+  return R.sum(Object.values(seen));
 };
 
 export const part2 = (commands: Command[]): number => {
-  const seen: Record<string, number>= {}
-  run(start2(), commands, (state)=>{
-    seen[state[state.length-1].toString()] = 1
-  })
-  return R.sum(Object.values(seen))
+  const seen: Record<string, number> = {};
+  run(start2(), commands, (state) => {
+    seen[state[state.length - 1].toString()] = 1;
+  });
+  return R.sum(Object.values(seen));
 };
 
 describe("day 9", () => {
@@ -185,12 +184,8 @@ describe("day 9", () => {
   });
 
   it("can handle a long tail", () => {
-    expect(
-      R.last(processCommands(start2(), [
-        ["R", 12],
-      ]))
-    ).toStrictEqual([
-      3, 0
+    expect(R.last(processCommands(start2(), [["R", 12]]))).toStrictEqual([
+      3, 0,
     ]);
   });
 
@@ -233,7 +228,7 @@ describe("day 9", () => {
     R 17
     D 10
     L 25
-    U 20`
+    U 20`;
     it("can solve the sample", () => {
       expect(part2(parse(testData))).toBe(1);
     });
