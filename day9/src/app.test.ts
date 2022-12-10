@@ -6,11 +6,23 @@ type Dir = "U" | "D" | "L" | "R";
 type Command = [Dir, number];
 
 type Position = [number, number];
-type State = [Position, Position];
+type State = Position[];
 
 const timer = new Timer();
 
-const start: State = [
+const start = (): State=> [
+  [0, 0],
+  [0, 0],
+];
+const start2 =():State => [
+  [0, 0],
+  [0, 0],
+  [0, 0],
+  [0, 0],
+  [0, 0],
+  [0, 0],
+  [0, 0],
+  [0, 0],
   [0, 0],
   [0, 0],
 ];
@@ -82,26 +94,44 @@ const moveRelative = (pos: Position): Position => {
   ];
 }
 
-const processStep = (state: State, dir: Dir): State => {
-  const newHead = processMove(state[0], dir)
-  const newTail: Position = R.zipWith(
+const processStepOnce = (state: State, idx=0): State => {
+  state[idx+1] = R.zipWith(
     R.add,
     timer.timed(moveRelative)(
-      R.zipWith(R.subtract, newHead, state[1]) as unknown as Position
+      R.zipWith(R.subtract, state[idx], state[idx+1]) as unknown as Position
     ),
-    state[1]
+    state[idx+1]
   ) as unknown as Position
-  return [newHead, newTail]
+  return state
 };
+const processStep0 = (state: State, dir: Dir): State => {
+  state[0] = processMove(state[0], dir)
+  processStepOnce(state, 0);
+  return state
+};
+const processStep2 = (state: State, dir: Dir): State => {
+  state[0] = processMove(state[0], dir);
+  for (const i of R.range(0, state.length-1)) {
+    processStepOnce(state, i)
+  }
+  return state;
+};
+const processStep = processStep2
 
 export const part1 = (commands: Command[]): number => {
-  const states = timer.timed(processCommandsToStates)(start, commands);
   const seen: Record<string, number>= {}
-  run(start, commands, (state)=>{
+  run(start(), commands, (state)=>{
     seen[state[state.length-1].toString()] = 1
   })
   return R.sum(Object.values(seen))
-  return R.uniq(states.map((state) => state[1])).length;
+};
+
+export const part2 = (commands: Command[]): number => {
+  const seen: Record<string, number>= {}
+  run(start2(), commands, (state)=>{
+    seen[state[state.length-1].toString()] = 1
+  })
+  return R.sum(Object.values(seen))
 };
 
 describe("day 9", () => {
@@ -113,30 +143,30 @@ describe("day 9", () => {
   });
 
   it("the head moves", () => {
-    expect(processCommands(start, [["R", 1]])).toStrictEqual([
+    expect(processCommands(start(), [["R", 1]])).toStrictEqual([
       [1, 0],
       [0, 0],
     ]);
-    expect(processCommands(start, [["L", 1]])).toStrictEqual([
+    expect(processCommands(start(), [["L", 1]])).toStrictEqual([
       [-1, 0],
       [0, 0],
     ]);
-    expect(processCommands(start, [["U", 1]])).toStrictEqual([
+    expect(processCommands(start(), [["U", 1]])).toStrictEqual([
       [0, 1],
       [0, 0],
     ]);
-    expect(processCommands(start, [["D", 1]])).toStrictEqual([
+    expect(processCommands(start(), [["D", 1]])).toStrictEqual([
       [0, -1],
       [0, 0],
     ]);
   });
 
   it("the head moves multiple times when commanded", () => {
-    expect(processCommands(start, [["R", 2]])[0]).toStrictEqual([2, 0]);
+    expect(processCommands(start(), [["R", 2]])[0]).toStrictEqual([2, 0]);
   });
 
   it("the tail follows the head in a line", () => {
-    expect(processCommands(start, [["R", 2]])).toStrictEqual([
+    expect(processCommands(start(), [["R", 2]])).toStrictEqual([
       [2, 0],
       [1, 0],
     ]);
@@ -144,13 +174,23 @@ describe("day 9", () => {
 
   it("the tail follows the head in a diagonal", () => {
     expect(
-      processCommands(start, [
+      processCommands(start(), [
         ["R", 1],
         ["U", 2],
       ])
     ).toStrictEqual([
       [1, 2],
       [1, 1],
+    ]);
+  });
+
+  it("can handle a long tail", () => {
+    expect(
+      R.last(processCommands(start2(), [
+        ["R", 12],
+      ]))
+    ).toStrictEqual([
+      3, 0
     ]);
   });
 
@@ -179,6 +219,39 @@ describe("day 9", () => {
       timer.reset();
       try {
         expect(part1(parse(input))).toBe(5883);
+      } finally {
+        timer.print();
+      }
+    });
+  });
+
+  describe("part 2", () => {
+    const testData2 = `R 5
+    U 8
+    L 8
+    D 3
+    R 17
+    D 10
+    L 25
+    U 20`
+    it("can solve the sample", () => {
+      expect(part2(parse(testData))).toBe(1);
+    });
+    it("can solve the second sample", () => {
+      expect(part2(parse(testData2))).toBe(36);
+    });
+    it("isn't slow", () => {
+      timer.reset();
+      try {
+        expect(part2(parse(input).slice(0, 600))).toBe(160);
+      } finally {
+        timer.print();
+      }
+    });
+    it("can solve the problem", () => {
+      timer.reset();
+      try {
+        expect(part2(parse(input))).toBe(2367);
       } finally {
         timer.print();
       }
