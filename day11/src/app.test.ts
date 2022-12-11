@@ -1,4 +1,3 @@
-import { BigInteger } from "jsbn";
 import * as R from "ramda";
 import { text, testData } from "./input";
 
@@ -62,10 +61,8 @@ type Monkey = {
   inspections: number;
 };
 
-const ZERO = new BigInteger("0");
 
 const mod = (n: number, div: number): number => {
-  // return bigInt(n).mod(div).toJSNumber();
   return n % div;
   const d = Math.floor(n / div);
   return n - d * div;
@@ -113,7 +110,6 @@ const parse = (text: string): Monkey[] => {
 };
 
 const runRound = (monkeys: Monkey[], worryReduction = 3): Monkey[] => {
-  const worry = new BigInteger("" + worryReduction);
   for (const monkey of monkeys) {
     monkey.inspections += monkey.items.length;
     for (const item of monkey.items) {
@@ -192,12 +188,6 @@ describe("day 11", () => {
     it("does the problem", () => {
       expect(part2(parse(text))).toBe(21800916620);
     });
-  });
-
-  it("bigint", () => {
-    expect(
-      new BigInteger("59").mod(new BigInteger("4")).equals(new BigInteger("3"))
-    ).toBeTruthy();
   });
 
   it("does big remainders", () => {
