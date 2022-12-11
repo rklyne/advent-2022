@@ -10,6 +10,10 @@ class Item {
 
   isDivisibleBy(n: number): boolean {
     if (this.n <= 10_000_000) {
+      // tracking both ways because:
+      // - part 1 only works with 'divide' support which I can't compute fast.
+      // - part 2 requires the fast way which overflows normal 64 bit integers
+      // - part 2 doesn't require division so I can hack it
       return this.n % n == 0
     }
     const pair = this.remainders.find((pair) => pair[0] == n);
