@@ -4,7 +4,7 @@ import { text, testData } from "./input";
 
 class Item {
   private remainders: [number, number][];
-  constructor(private n: number, moduli: number[]) {
+  constructor(public n: number, moduli: number[]) {
     this.remainders = moduli.map((m) => [m, n % m]);
   }
 
@@ -167,7 +167,7 @@ describe("day 11", () => {
 
   it("one round", () => {
     expect(
-      runRound(parse(testData)).map((monkey) => monkey.items)
+      runRound(parse(testData)).map((monkey) => monkey.items.map(item => item.n))
     ).toStrictEqual([
       [20, 23, 27, 26],
       [2080, 25, 167, 207, 401, 1046],
