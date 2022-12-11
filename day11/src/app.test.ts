@@ -9,11 +9,15 @@ class Item {
   }
 
   isDivisibleBy(n: number): boolean {
+    if (this.n <= 10_000_000) {
+      return this.n % n == 0
+    }
     const pair = this.remainders.find((pair) => pair[0] == n);
     return pair[1] == 0;
   }
 
   add(n: number): void {
+    this.n += n
     this.remainders = this.remainders.map(([mod, remain]) => [
       mod,
       (remain + n) % mod,
@@ -21,6 +25,7 @@ class Item {
   }
 
   multiply(n: number): void {
+    this.n *= n
     this.remainders = this.remainders.map(([mod, remain]) => [
       mod,
       (remain * n) % mod,
@@ -28,6 +33,7 @@ class Item {
   }
 
   divide(n: number) {
+    this.n = Math.floor(this.n / n)
     this.remainders = this.remainders.map(([mod, remain]) => [
       mod,
       Math.floor(remain / n) % mod,
@@ -35,6 +41,7 @@ class Item {
   }
 
   square(): void {
+    this.n *= this.n
     this.remainders = this.remainders.map(([mod, remain]) => [
       mod,
       (remain * remain) % mod,
