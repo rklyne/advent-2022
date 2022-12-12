@@ -75,12 +75,11 @@ const findShortestPath = (
 
   // using the stored paths from start node to end node
   // record the shortest path
-  const endNode = R.head(
-    R.sortBy(
-      R.prop("distance"),
-      endNodes.map((n) => ({ distance: distances[n], n }))
-    )
-  ).n;
+  const endNodeData = R.sortBy(
+    R.prop("distance"),
+    endNodes.filter(n => distances[n]).map((n) => ({ distance: distances[n], n }))
+  );
+  const endNode = R.head(endNodeData).n;
   let shortestPath = [endNode];
   let parent = parents[endNode];
   while (parent) {
@@ -141,8 +140,8 @@ const parse = (text: string): ParseResult => {
       if (!nodeIds[c]) {
         nodeIds[c] = [];
       }
-      const f = cellId([i, j]);
-      nodeIds[c].push(cellId([i, j]));
+      const here = cellId([i, j]);
+      nodeIds[c].push(here);
       const adjCells: [number, number][] = [
         [i, j + 1],
         [i, j - 1],
@@ -151,9 +150,9 @@ const parse = (text: string): ParseResult => {
       ];
       for (const adjacent of adjCells) {
         if (canMakeMove(c, lines[adjacent[0]]?.[adjacent[1]])) {
-          const t = cellId(adjacent);
-          addNode(graph, f, t);
-          addNode(reverseGraph, t, f);
+          const there = cellId(adjacent);
+          addNode(graph, here, there);
+          addNode(reverseGraph, there, here);
         }
       }
     }
@@ -170,8 +169,10 @@ const part1 = (g: Graph): number => {
 };
 
 const part2 = (parseResult: ParseResult): number => {
-  return findShortestPath(parseResult.reverseGraph, "E", parseResult.nodeIds["a"])
-    .distance;
+  return findShortestPath(parseResult.reverseGraph, "E", [
+    ...parseResult.nodeIds["a"],
+    ...parseResult.nodeIds["S"],
+  ]).distance;
 };
 
 describe("", () => {
@@ -218,7 +219,7 @@ describe("", () => {
       expect(part2(parse(testData))).toBe(29);
     });
     it("has the answer", () => {
-      expect(part2(parse(data))).toBe(-1);
+      expect(part2(parse(data))).toBe(399);
     });
   });
 });
