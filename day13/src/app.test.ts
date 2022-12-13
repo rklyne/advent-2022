@@ -2,7 +2,7 @@ import * as R from "ramda";
 import { data } from "./input";
 
 type Item = number | Item[];
-type Packet = Item
+type Packet = Item;
 type Pair = [Packet, Packet];
 
 const parse = (text: string): Pair[] => {
@@ -14,22 +14,19 @@ const parse = (text: string): Pair[] => {
 };
 
 const inOrder = (pair: Pair): boolean | null => {
-  const lArray = Array.isArray(pair[0]);
-  const rArray = Array.isArray(pair[1]);
-  if (!lArray && !rArray) {
+  const l = pair[0];
+  const r = pair[1];
+  if (!Array.isArray(l) && !Array.isArray(r)) {
     if (pair[0] == pair[1]) {
       return null;
     }
     return pair[0] < pair[1];
   }
-  if (!lArray) return inOrder([[pair[0]], pair[1]]);
-  if (!rArray) return inOrder([pair[0], [pair[1]]]);
-  return inOrderLists(pair[0] as Item[], pair[1] as Item[]);
-};
-const inOrderLists = (l: Item[], r: Item[]): boolean | null => {
+  if (!Array.isArray(l)) return inOrder([[pair[0]], pair[1]]);
+  if (!Array.isArray(r)) return inOrder([pair[0], [pair[1]]]);
   for (const newPair of R.zip(l, r)) {
     const pairResult = inOrder(newPair);
-    if (pairResult != null) return pairResult
+    if (pairResult != null) return pairResult;
   }
   if (l.length < r.length) return true;
   if (l.length > r.length) return false;
@@ -47,17 +44,21 @@ const part1 = (pairs: Pair[]): number => {
 };
 
 const part2 = (pairs: Pair[]): number => {
-  const packets: Packet[] = R.reduce((packets1, packets2) => packets1.concat(packets2), [], pairs).concat([[[2]], [[6]]])
+  const packets: Packet[] = R.reduce(
+    (packets1, packets2) => packets1.concat(packets2),
+    [],
+    pairs
+  ).concat([[[2]], [[6]]]);
   const sorted = packets.sort((l: Packet, r: Packet) => {
     const cmp = inOrder([l, r]);
-    if (cmp == false) return 1
-    if (cmp == true) return -1
-    return 0
-  })
-  const strings = sorted.map(packet => JSON.stringify(packet))
-  const idx1 = strings.indexOf("[[2]]") + 1
-  const idx2 = strings.indexOf("[[6]]") + 1
-  return idx1 * idx2
+    if (cmp == false) return 1;
+    if (cmp == true) return -1;
+    return 0;
+  });
+  const strings = sorted.map((packet) => JSON.stringify(packet));
+  const idx1 = strings.indexOf("[[2]]") + 1;
+  const idx2 = strings.indexOf("[[6]]") + 1;
+  return idx1 * idx2;
 };
 
 describe("day 13", () => {
@@ -77,7 +78,7 @@ describe("day 13", () => {
   });
 
   it.each([
-    [[[1], [2]] as Pair,true],
+    [[[1], [2]] as Pair, true],
     [
       [
         [1, 1, 3, 1, 1],
