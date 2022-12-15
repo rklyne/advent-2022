@@ -19,16 +19,20 @@ const distance = (p1: Point, p2: Point): number => {
   return Math.abs(p1[0] - p2[0]) + Math.abs(p1[1] - p2[1]);
 };
 
-const inRangeOfRow = (row: number, sensor): Range|undefined => {
-  const sensorDistance = distance(sensor[0], sensor[1]);
+const inRangeOfRow = (row: number, sensor): Range | undefined => {
   const midColumn = sensor[0][1];
   const rowMidPoint: Point = [row, midColumn];
-  const rowDistance = distance(sensor[0], rowMidPoint);
+  return pointInRange(rowMidPoint, sensor);
+};
+
+const pointInRange = (point: Point, sensor: Sensor) => {
+  const sensorDistance = distance(sensor[0], sensor[1]);
+  const rowDistance = distance(sensor[0], point);
   if (sensorDistance < rowDistance) {
-    return
+    return;
   }
   const diff = rangeSize([sensorDistance, rowDistance]) - 1;
-  const range: Range = [midColumn - diff, midColumn + diff];
+  const range: Range = [point[1] - diff, point[1] + diff];
   return range;
 };
 
@@ -65,25 +69,25 @@ const overlapSize = (r1: Range, r2: Range): number => {
 const rangeMinusL = (range: Range, other: Range): Range[] => {
   const result = rangeMinus(range, other);
   // console.log({range, other, result})
-  return result
-}
+  return result;
+};
 const rangeMinus = (range: Range, other: Range): Range[] => {
   const overlap = overlapRange(range, other);
   if (!overlap) return [range];
   if (overlap[0] == range[0]) {
     if (overlap[1] == range[1]) {
-      return []
+      return [];
     } else {
-      return [[overlap[1]+1, range[1]]]
+      return [[overlap[1] + 1, range[1]]];
     }
   } else {
     if (overlap[1] == range[1]) {
-      return [[range[0], overlap[0]-1]]
+      return [[range[0], overlap[0] - 1]];
     } else {
       return [
-        [range[0], overlap[0]-1],
-        [overlap[1]+1, range[1]]
-      ]
+        [range[0], overlap[0] - 1],
+        [overlap[1] + 1, range[1]],
+      ];
     }
   }
   return [];
@@ -103,9 +107,7 @@ const rangeTotal = (ranges: Range[]): number => {
     newRanges.forEach((r) => rangesToAdd.push(r));
   }
   // console.log({ranges: ranges.length, toAdd: rangesToAdd.length, ranges, rangesToAdd})
-  return (
-    R.sum(rangesToAdd.map(rangeSize))
-  );
+  return R.sum(rangesToAdd.map(rangeSize));
 };
 
 const numberInRange = (n: number, range: Range): boolean => {
@@ -132,12 +134,55 @@ const beaconsInRanges = (
   return total;
 };
 
+const surroundingPoints = (sensor: Sensor): Point[] => {
+  const dist = distance(sensor[0], sensor[1])+1;
+  return diamondAtDistance(sensor[0], dist);
+}
+const diamondAtDistance = (point: Point, dist: number) => {
+  const points: Point[] = [];
+  const lCorner: Point = [point[0], point[1] - dist];
+  const rCorner: Point = [point[0], point[1] + dist];
+  const tCorner: Point = [point[0] + dist, point[1]];
+  const bCorner: Point = [point[0] - dist, point[1]];
+  for (const i of R.range(0, dist)) {
+    points.push([lCorner[0] + i, lCorner[1] + i] as Point);
+    points.push([tCorner[0] + i, tCorner[1] - i] as Point);
+    points.push([rCorner[0] - i, rCorner[1] - i] as Point);
+    points.push([bCorner[0] - i, bCorner[1] + i] as Point);
+  }
+  // console.log({sensor, dist, lCorner, tCorner, rCorner, bCorner, points})
+  // return [[11, 14]] as Point[]
+  return points;
+};
+
+const findBlankPoint = (sensors: Sensor[]): Point => {
+  const points:Point[] = []
+  const maxX = R.reduce(R.max, 0, sensors.map(s => s[0][1]))
+  const maxY = R.reduce(R.max, 0, sensors.map(s => s[0][0]))
+  for (const sensor of sensors) {
+    const otherSensors = sensors.filter((s) => s !== sensor);
+    for (const point of surroundingPoints(sensor)) {
+      if (point[0] < 0 || point[0] > maxY) continue
+      if (point[1] < 0 || point[1] > maxX) continue
+      if (R.all(s => pointInRange(point, s) == undefined, otherSensors)) {
+        points.push(point);
+      }
+    }
+  }
+  return points[0]
+};
+
 const part1 = (sensors: Sensor[], row): number => {
   const ranges = sensors.map(R.partial(inRangeOfRow, [row])).filter(R.identity);
   const range = rangeTotal(ranges);
-  console.log({ranges, range})
+  // console.log({ranges, range})
   const beacons = beaconsInRanges(sensors, ranges, row);
   return range - beacons;
+};
+
+const part2 = (sensors: Sensor[]): number => {
+  const point: Point = findBlankPoint(sensors);
+  return point[1] * 4_000_000 + point[0];
 };
 
 describe("day 15", () => {
@@ -176,7 +221,7 @@ describe("day 15", () => {
         [3, 8],
         [10, 10],
         [2, 6],
-        [12,13]
+        [12, 13],
       ])
     ).toBe(11);
   });
@@ -210,9 +255,17 @@ describe("day 15", () => {
       expect(part1(parse(data2), 2_000_000)).toBe(4879972);
     });
     it("answer", () => {
-      expect(part1(parse(data), 2_000_000)).toBe(-1);
+      expect(part1(parse(data), 2_000_000)).toBe(5073496);
       // not 6712745
       // not 6712744
+    });
+  });
+  describe("part 2", () => {
+    it("sample", () => {
+      expect(part2(parse(testData))).toBe(56000011);
+    });
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(13081194638237);
     });
   });
 });
