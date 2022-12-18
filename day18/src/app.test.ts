@@ -24,7 +24,7 @@ const part1 = (points: Point[]): number => {
   const maxX = Math.max(...points.map((p) => p[0]));
   const maxY = Math.max(...points.map((p) => p[1]));
   const maxZ = Math.max(...points.map((p) => p[2]));
-  console.log({ maxX, maxY, maxZ });
+  // console.log({ maxX, maxY, maxZ });
   const lava: number[][][] = R.range(0, maxX + 1).map((n) =>
     R.range(0, maxY + 1).map((n) => R.range(0, maxZ + 1).map((n) => 0))
   );
@@ -47,7 +47,7 @@ const part2 = (points: Point[]): number => {
   const maxX = Math.max(...points.map((p) => p[0])) + 1;
   const maxY = Math.max(...points.map((p) => p[1])) + 1;
   const maxZ = Math.max(...points.map((p) => p[2])) + 1;
-  console.log({ maxX, maxY, maxZ });
+  // console.log({ maxX, maxY, maxZ });
   const lava: number[][][] = R.range(0, maxX + 2).map((n) =>
     R.range(0, maxY + 2).map((n) => R.range(0, maxZ + 2).map((n) => 0))
   );
@@ -93,7 +93,8 @@ const part2 = (points: Point[]): number => {
   let repeats = 0;
   let stepsSinceNoProgress = 0;
   while (allPoints.length) {
-    if (stepsSinceNoProgress > 2 * allPoints.length) {
+    if (stepsSinceNoProgress > allPoints.length) {
+      // If we've checked everything in the list and nothing changed then we're done.
       break;
     }
     if (limit == 0) throw "oops limit";
