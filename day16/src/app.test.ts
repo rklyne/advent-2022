@@ -19,19 +19,26 @@ class State {
     public log: string[] = []
   ) {
     this.open = open;
-    this.label = this.open.sort().join(",");
+    this.updateLabel();
   }
 
   copy(): State {
-    return new State(this.junctions, this.position, this.score, this.time, [
-      ...this.open,
-    ], [...this.log]);
+    return new State(
+      this.junctions,
+      this.position,
+      this.score,
+      this.time,
+      [...this.open],
+      [...this.log]
+    );
   }
 
   doToggle(name: string): State {
     if (this.open.includes(name)) throw "oops already open " + name;
     const next = this.copy();
-    next.log.push(`(${this.scoreIncrement()}) minute ${this.time} open ${name}`);
+    next.log.push(
+      `(${this.scoreIncrement()}) minute ${this.time} open ${name}`
+    );
     next.addTime(1);
     next.open.push(name);
     return next;
@@ -39,7 +46,11 @@ class State {
 
   doMove(nextPlace: string, cost: number): State {
     const next = this.copy();
-    next.log.push(`(${this.scoreIncrement()}) minute ${this.time} move ${nextPlace} /${cost}`)
+    next.log.push(
+      `(${this.scoreIncrement()}) minute ${
+        this.time
+      } move ${nextPlace} /${cost}`
+    );
     next.position = nextPlace;
     next.addTime(cost);
     return next;
@@ -50,24 +61,29 @@ class State {
     R.range(0, n).forEach(() => {
       this.addScore();
     });
+    this.updateLabel();
+  }
+
+  updateLabel() {
+    this.label = this.open.sort().join(",");
   }
 
   addScore(): void {
-    this.score += this.scoreIncrement()
+    this.score += this.scoreIncrement();
   }
 
   scoreIncrement(): number {
     return R.sum(
-      this.junctions.filter((j) => this.open.includes(j.name)).map((j) => j.flowRate)
+      this.junctions
+        .filter((j) => this.open.includes(j.name))
+        .map((j) => j.flowRate)
     );
   }
 }
 
-
-
 const search = (map: PipeMap, steps = 30): State => {
   const initialState = new State(map);
-  const stateHeap = new Heap<State>((a, b) => a.score - b.score);
+  const stateHeap = new Heap<State>((a, b) => a.time - b.time);
   stateHeap.push(initialState);
   const junctions: Record<string, Junction> = Object.fromEntries(
     map.map((junction) => [junction.name, junction])
@@ -91,52 +107,57 @@ const search = (map: PipeMap, steps = 30): State => {
 
   const scoreWhenOpen: Record<string, number> = {};
   const scoreWhenAt: Record<string, number> = {};
+  const projectedScore = (state: State) => {
+    return state.score;
+    return (steps - state.time) * state.scoreIncrement() + state.score;
+  };
 
   let best: State = initialState;
   const search = (state: State) => {
     if (state.time > steps) {
       if (state.score >= best.score) {
-        best = state
+        best = state;
       }
       return;
     }
     const node = junctions[state.position];
-    if (node.flowRate != 0 && !(state.open.includes(node.name))) {
+    if (node.flowRate != 0 && !state.open.includes(node.name)) {
       const newOpen = state.doToggle(node.name);
       if (
         newOpen.label in scoreWhenOpen &&
-        scoreWhenOpen[newOpen.label] > newOpen.score
+        scoreWhenOpen[newOpen.label] > projectedScore(newOpen)
       ) {
         // loop protection
         return;
       } else {
-        scoreWhenOpen[newOpen.label] = newOpen.score;
+        scoreWhenOpen[newOpen.label] = projectedScore(newOpen);
       }
       stateHeap.push(newOpen);
     }
+
     for (const [nextPlace, cost, junction] of paths[node.name]) {
-      const newPosition = state.doMove(nextPlace, cost)
-      const posLabel = nextPlace+"+"+state.label
+      const newPosition = state.doMove(nextPlace, cost);
+      const posLabel = nextPlace + "+" + state.label;
       if (
         posLabel in scoreWhenAt &&
-        scoreWhenAt[posLabel] >= newPosition.score
+        scoreWhenAt[posLabel] >= projectedScore(newPosition)
       ) {
         // loop protection
         return;
       } else {
-        scoreWhenAt[posLabel] = newPosition.score;
+        scoreWhenAt[posLabel] = projectedScore(newPosition)
       }
       stateHeap.push(newPosition);
     }
   };
 
-  let limit = 20000;
+  let limit = 2_000_000;
   while (stateHeap.size()) {
-    const state = stateHeap.pop()
+    const state = stateHeap.pop();
     search(state);
     limit--;
     if (limit == 0) {
-      console.log({best, state})
+      console.log({ best, state, len: stateHeap.size() });
       throw "limit break";
     }
   }
@@ -175,7 +196,7 @@ const parse = (text: string): PipeMap => {
 
 const part1 = (map: PipeMap) => {
   const result = search(map);
-  console.log({result})
+  console.log({ result, incr: result.scoreIncrement() });
   return result.score;
 };
 describe("day 16", () => {
@@ -187,47 +208,9 @@ describe("day 16", () => {
     });
   });
 
-  it("can search", () => {
-    const ns = [
-'(0) minute 1 move DD /1',
-'(0) minute 2 open DD',
-'(20) minute 3 move CC /1',
-'(20) minute 4 move BB /1',
-'(20) minute 5 open BB',
-'(33) minute 6 move AA /1',
-'(33) minute 7 move II /1',
-'(33) minute 8 move JJ /1',
-'(33) minute 9 open JJ',
-'(54) minute 10 move II /1',
-'(54) minute 11 move AA /1',
-'(54) minute 12 move BB /1',
-'(54) minute 13 move CC /1',
-'(54) minute 14 open CC',
-'(56) minute 15 move DD /1',
-'(56) minute 16 move EE /1',
-'(56) minute 17 move FF /1',
-'(56) minute 18 move GG /1',
-'(56) minute 19 move HH /1',
-'(56) minute 20 open HH',
-'(78) minute 21 move GG /1',
-'(78) minute 22 move FF /1',
-'(78) minute 23 move EE /1',
-'(78) minute 24 open EE',
-'(81) minute 25 move DD /1',
-'(81) minute 26 move EE /1',
-'(81) minute 27 move DD /1',
-'(81) minute 28 move EE /1',
-'(81) minute 29 move FF /1',
-'(81) minute 30 move GG /1'
-    ].map(l => parseInt(l.split(")")[0].slice(1)))
-    expect(R.sum(ns)).toBe("bad")
-  });
-
   describe("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(1651);
     });
   });
-
-
 });
