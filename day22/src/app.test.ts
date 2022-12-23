@@ -205,7 +205,7 @@ class Cursor {
     const start = 0;
     const newPos = doLineMove(col, start, n);
     this.setPos(newPos);
-    if (this.history.length < 5) {
+    if (false && this.history.length < 5) {
       console.log({
         col: col.map((c) => c[0]).join(""),
         col0: col[start],
@@ -221,7 +221,7 @@ class Cursor {
     // if (firstPos[1] != 0) throw `oops bad row to walk`
     const start = 0;
     const newPos = doLineMove(row, start, n);
-    if (this.history.length < 5) {
+    if (false && this.history.length < 5) {
       console.log({
         row: row.map((c) => c[0]).join(""),
         row0: row[start],
@@ -262,33 +262,23 @@ class BoxCursor extends Cursor {
 
   protected walk(pos: Position, n: number): [Cell, Position][] {
     if (n <= 0) return [];
+    if (pos[0] >= this.cMax) throw new Error("oops bad pos[0]");
+    if (pos[1] >= this.rMax) throw new Error("oops bad pos[1]");
+    // TODO: Copy walk from prev + implement rotate
+    const cell = this.board.getCell(pos[0], pos[1]);
     const next = this.next(pos);
     const nextChr = this.board.getCell(next[0], next[1]);
     if (nextChr == " ") throw "oops walk needs rotate";
+    return [[cell, pos], ...this.walk(next, n - 1)];
     throw "oops unhandled end of walk";
   }
 
   protected getCol(n: number): Line {
-    /* squares:
-     * ..#.
-     * ###.
-     * ..##
-     *
-     */
-    // throw "oops not implemented col"
     return this.walk(this.currentPosition, 4 * this.#squareSize);
-    return this.board
-      .getCol(n)
-      .split("")
-      .map((c, idx) => [c as Cell, [idx, n, this.face]]);
   }
 
   protected getRow(n: number): Line {
-    // throw "oops not implemented row"
-    return this.board
-      .getRow(n)
-      .split("")
-      .map((c, idx) => [c as Cell, [n, idx, this.face]]);
+    return this.walk(this.currentPosition, 4 * this.#squareSize);
   }
 }
 
@@ -308,7 +298,7 @@ const part1 = (input: Input) => {
     // console.log(cursor.pos)
   }
   const { row, col, facing } = cursor.pos;
-  console.log({ result: cursor.pos, history: cursor.history });
+  // console.log({ result: cursor.pos, history: cursor.history });
   return 1000 * row + 4 * col + facing;
 };
 
@@ -491,7 +481,7 @@ describe("day 22", () => {
     });
   });
 
-  describe.skip("part 2", () => {
+  describe("part 2", () => {
     it("sample", () => {
       expect(part2(parse(testData))).toBe(5031);
     });
