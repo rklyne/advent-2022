@@ -80,13 +80,24 @@ class Board {
   }
 
   getCell(r: number, c: number): Cell {
-    if (r >= this.cMax) throw new Error(`oops bad row num ${r}, ${c}, (${this.rMax}x${this.cMax})`);
-    if (c >= this.rMax) throw new Error(`oops bad col num  ${r}, ${c}, (${this.rMax}x${this.cMax})`);
+    if (r >= this.cMax)
+      throw new Error(
+        `oops bad row num ${r}, ${c}, (${this.rMax}x${this.cMax})`
+      );
+    if (c >= this.rMax)
+      throw new Error(
+        `oops bad col num  ${r}, ${c}, (${this.rMax}x${this.cMax})`
+      );
     const row = this.#rows[r];
-    if (!row) throw new Error(`oops not a row ${r}, ${c}, ${row}, (${this.rMax}x${this.cMax})`);
+    if (!row)
+      throw new Error(
+        `oops not a row ${r}, ${c}, ${row}, (${this.rMax}x${this.cMax})`
+      );
     const cell = row[c];
     if (isCell(cell)) return cell;
-    throw new Error(`oops not a cell ${r}, ${c}, ${cell} (${row.length}/${this.rMax}, ${this.cMax})`);
+    throw new Error(
+      `oops not a cell ${r}, ${c}, ${cell} (${row.length}/${this.rMax}, ${this.cMax})`
+    );
   }
 }
 
@@ -98,10 +109,15 @@ class Cursor {
   protected row: number;
   protected col: number;
   protected face: Facing;
+  public history: Position[];
+  // useWalk = false;
+  useWalk = true
+
   constructor(protected board: Board) {
     this.row = 0;
     this.col = board.getRow(0).indexOf(".");
     this.face = 0;
+    this.history = [];
   }
 
   get pos() {
@@ -114,10 +130,11 @@ class Cursor {
 
   move(n: number) {
     const f = this.face;
+    const reverse = [FaceLeft, FaceUp].includes(f)
     if (f == 0 || f == 2) {
-      this.moveRight(f == 0 ? n : -n);
+      this.moveRight(n, reverse);
     } else {
-      this.moveDown(f == 1 ? n : -n);
+      this.moveDown(n, reverse);
     }
   }
 
@@ -127,6 +144,7 @@ class Cursor {
     this.row = pos[0];
     this.col = pos[1];
     this.face = pos[2];
+    this.history.push(this.currentPosition);
   }
 
   get currentPosition(): Position {
@@ -140,11 +158,14 @@ class Cursor {
     return this.board.rMax;
   }
 
-  protected getCol(n: number): Line {
-    const w = this.walk(this.currentPosition, this.board.cMax);
-    if (w[0][1][2] != this.face) throw "oops walk col facing wrong";
-    // return w
+  protected getCol(n: number, reverse: boolean): Line {
     if (n >= this.board.cMax) throw new Error("oops getting bad col");
+
+    const curr = this.currentPosition;
+    const w = this.walk(curr, this.board.cMax);
+    if (w[0][1][2] != this.face) throw "oops walk col facing wrong";
+    if (this.useWalk) return w;
+
     const boardCol = this.board.getCol(n);
     const oldCol: Line = boardCol.split("").map((c, idx) => {
       if (!isCell(c)) throw "oops walked too far";
@@ -154,14 +175,16 @@ class Cursor {
         );
       return [c, [idx, n, this.face]];
     });
-    return oldCol;
+    return R.reverse(oldCol);
   }
 
-  protected getRow(n: number): Line {
-    // const w = this.walk(this.currentPosition, this.board.cMax);
-    // if (w[0][1][2] != this.face) throw "oops walk row facing wrong";
-    // return w
-    if (n >= this.board.cMax) throw new Error("oops getting bad row");
+  protected getRow(n: number, reverse: boolean): Line {
+    if (n >= this.cMax) throw new Error("oops getting bad row");
+
+    const w = this.walk(this.currentPosition, this.board.rMax);
+    if (w[0][1][2] != this.face) throw "oops walk row facing wrong";
+    if (this.useWalk) return w;
+
     const boardRow = this.board.getRow(n);
     const oldRow: Line = boardRow.split("").map((c, idx) => {
       if (!isCell(c)) throw "oops walked too far";
@@ -171,7 +194,7 @@ class Cursor {
         );
       return [c, [n, idx, this.face]];
     });
-    return oldRow;
+    return R.reverse(oldRow);
   }
 
   protected next(pos: Position): Position {
@@ -181,17 +204,9 @@ class Cursor {
       case FaceDown:
         return [(pos[0] + 1) % this.cMax, pos[1], pos[2]];
       case FaceLeft:
-        return [
-          pos[0],
-          (pos[1] + this.rMax - 1) % this.rMax,
-          pos[2],
-        ];
+        return [pos[0], (pos[1] + this.rMax - 1) % this.rMax, pos[2]];
       case FaceUp:
-        return [
-          (pos[0] + this.cMax - 1) % this.cMax,
-          pos[1],
-          pos[2],
-        ];
+        return [(pos[0] + this.cMax - 1) % this.cMax, pos[1], pos[2]];
     }
     throw "oops unknown facing";
   }
@@ -206,14 +221,38 @@ class Cursor {
     throw "oops unhandled end of walk";
   }
 
-  protected moveDown(n: number) {
-    const col = this.getCol(this.col);
-    this.setPos(doLineMove(col, this.row, n));
+  protected moveDown(n: number, reverse: boolean) {
+    const col = this.getCol(this.col, reverse);
+    const firstPos = col[0][1];
+    // if (firstPos[0] != 0) throw `oops bad col to walk ${firstPos}`
+    let start;
+    if (this.useWalk){
+      start = 0 
+    } else {
+      start = reverse?(this.rMax-this.row-1) :this.row
+    }
+    const newPos = doLineMove(col, start, n)
+    this.setPos(newPos);
+    if (this.history.length < 5) {
+      console.log({col: col.map(c => c[0]).join(""), col0: col[start], col1: col[start+1], newPos})
+    }
   }
 
-  protected moveRight(n: number) {
-    const row = this.getRow(this.row);
-    this.setPos(doLineMove(row, this.col, n));
+  protected moveRight(n: number, reverse: boolean) {
+    const row = this.getRow(this.row, reverse);
+    const firstPos = row[0][1];
+    // if (firstPos[1] != 0) throw `oops bad row to walk`
+    let start;
+    if (this.useWalk){
+      start = 0 
+    } else {
+      start = reverse?(this.cMax-this.col-1) :this.col
+    }
+    const newPos = doLineMove(row, start, n)
+    if (this.history.length < 5) {
+      console.log({row: row.map(c => c[0]).join(""), row0: row[start], row1: row[start+1], newPos})
+    }
+    this.setPos(newPos);
   }
 
   turn(turn: Turn): void {
@@ -282,7 +321,8 @@ const squareAfter = (squareMap: SquareMap, pos: Position) => {
   const squarePos = [pos[0] / 50];
 };
 
-const followPath = ([setup, path]: Input) => {
+const part1 = (input: Input) => {
+  const [setup, path] = input;
   const board = new Board(setup);
   const cursor = new Cursor(board);
   for (const [move, turn] of path) {
@@ -290,13 +330,8 @@ const followPath = ([setup, path]: Input) => {
     cursor.turn(turn);
     // console.log(cursor.pos)
   }
-  return cursor.pos;
-};
-
-const part1 = (input: Input) => {
-  const result = followPath(input);
-  console.log({ result });
-  const { row, col, facing } = result;
+  const { row, col, facing } = cursor.pos;
+  console.log({ result: cursor.pos, history: cursor.history });
   return 1000 * row + 4 * col + facing;
 };
 
@@ -310,6 +345,7 @@ const part2 = (input: Input) => {
     // console.log(cursor.pos)
   }
   const { row, col, facing } = cursor.pos;
+  console.log(cursor.pos);
   return 1000 * row + 4 * col + facing;
 };
 
@@ -325,6 +361,7 @@ const doLineMove = (line: Line, start: number, move: number): Position => {
 
 const doMove = (line: string, start: number, move: number): number => {
   if (move < 0) {
+    throw "oops, should be accounted in row"
     const revPos = (n: number) => line.length - n - 1;
     const revLine = R.reverse(line);
     const revStart = revPos(start);
@@ -394,7 +431,7 @@ describe("day 22", () => {
       expect(doMove(" ...", 1, 2)).toBe(3);
     });
 
-    it("can move backward", () => {
+    it.skip("can move backward", () => {
       expect(doMove("....", 3, -3)).toBe(0);
       expect(doMove(" ...", 3, -2)).toBe(1);
     });
@@ -406,6 +443,7 @@ describe("day 22", () => {
 
     it("stops at rocks", () => {
       expect(doMove("..#..", 0, 3)).toBe(1);
+      expect(doMove("..#..", 1, 1)).toBe(1);
       expect(doMove("#..#..", 1, 3)).toBe(2);
     });
 
@@ -427,7 +465,7 @@ describe("day 22", () => {
       expect(doMove(" .#.. ", 4, 3)).toBe(1);
     });
 
-    it("wraps backward past the end with blanks and rock", () => {
+    it.skip("wraps backward past the end with blanks and rock", () => {
       expect(doMove(" .#.. ", 1, -3)).toBe(3);
     });
   });
