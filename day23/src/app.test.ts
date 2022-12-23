@@ -27,7 +27,7 @@ class Field {
 
   constructor(public input: Input) {
     const elves: Coords[] = [];
-    this.directions = 'NSWE'.split("")
+    this.directions = "NSWE".split("");
     input.forEach((line, row) => {
       line.forEach((place, col) => {
         if (place == ELF) {
@@ -48,9 +48,9 @@ class Field {
   getDimensions() {
     const [rows, cols] = R.transpose(Object.values(this.elves));
     const minY = Math.min(...rows);
-    const maxY = Math.max(...rows) + 1;
+    const maxY = Math.max(...rows)+1;
     const minX = Math.min(...cols);
-    const maxX = Math.max(...cols) + 1;
+    const maxX = Math.max(...cols)+1;
     const width = maxX - minX;
     const height = maxY - minY;
     return { width, height, minX, maxX, minY, maxY };
@@ -61,15 +61,16 @@ class Field {
     return height * width;
   }
 
-  runStep(): void {
-    const destinations: Record<string, Coords> = {};
+  runStep(): number {
+    const proposals: Record<string, Coords> = {};
+    const staying: Record<string, Coords> = {};
     const registered: Set<string> = new Set();
     const blocked: Set<string> = new Set();
     Object.entries(this.elves).forEach(([elfId, coord]) => {
       // calculate destination
       const dest = this.moveFrom(coord);
       if (dest) {
-        destinations[elfId] = dest;
+        proposals[elfId] = dest;
         const destId = elfToStr(dest);
         // IF empty, register interest
         if (!registered.has(destId)) {
@@ -83,22 +84,26 @@ class Field {
         //
       } else {
         // otherwise stay
-        destinations[elfId] = coord;
+        staying[elfId] = coord;
       }
     });
     // Calculate new positions with all unblocked moves
     const elves: Coords[] = [];
 
-    Object.entries(destinations).forEach(([elfId, destCoord]) => {
-      const destId = elfToStr(destCoord);
-      if (blocked.has(destId)) {
-        elves.push(this.elves[elfId]);
-      } else {
-        elves.push(destCoord);
-      }
-    });
-    if (elves.length != (new Set(elves)).size) {
-      throw "oops overlapping elves"
+    let movedElves = 0;
+    Object.entries(proposals)
+      .concat(Object.entries(staying))
+      .forEach(([elfId, destCoord]) => {
+        const destId = elfToStr(destCoord);
+        if (blocked.has(destId)) {
+          elves.push(this.elves[elfId]);
+        } else {
+          movedElves++;
+          elves.push(destCoord);
+        }
+      });
+    if (elves.length != new Set(elves).size) {
+      throw "oops overlapping elves";
     }
     // console.log({ previous: Object.values(this.elves), elves });
     const elvesBefore = this.elves.length;
@@ -114,11 +119,12 @@ class Field {
       });
       throw "oops lost+found elves";
     }
-    this.cycleDirections()
+    this.cycleDirections();
+    return movedElves;
   }
 
   private cycleDirections(): void {
-    this.directions = [...this.directions.slice(1), this.directions[0]]
+    this.directions = [...this.directions.slice(1), this.directions[0]];
   }
 
   private elfAt(coord: Coords): boolean {
@@ -126,62 +132,81 @@ class Field {
   }
 
   private moveFrom(coord: Coords): Coords {
+    const offsets = [-1, 0, 1];
+
+    let adjacentElf = false;
+    for (const x of offsets) {
+      for (const y of offsets) {
+        if (x == 0 && y == 0) continue;
+        if (this.elfAt([coord[0] + x, coord[1] + y])) {
+          adjacentElf = true;
+          break;
+        }
+      }
+      if (adjacentElf) break;
+    }
+    if (!adjacentElf) return;
+
     for (const direction of this.directions) {
-    // N => [-1, 0]
-    if (
-      direction == "N" &&
-      !R.any(
-        (offset) => this.elfAt([coord[0] - 1, coord[1] + offset]),
-        [-1, 0, 1]
-      )
-    ) {
-      return [coord[0] - 1, coord[1]];
-    }
-    // S => [1, 0]
-    if (
-      direction == "S" &&
-      !R.any(
-        (offset) => this.elfAt([coord[0] + 1, coord[1] + offset]),
-        [-1, 0, 1]
-      )
-    ) {
-      return [coord[0] + 1, coord[1]];
-    }
-    // W => [0, -1]
-    if (
-      direction == "W" &&
-      !R.any(
-        (offset) => this.elfAt([coord[0] + offset, coord[1] - 1]),
-        [-1, 0, 1]
-      )
-    ) {
-      return [coord[0], coord[1] - 1];
-    }
-    // E => [0, 1]
-    if (
-      direction == "E" &&
-      !R.any(
-        (offset) => this.elfAt([coord[0] + offset, coord[1] + 1]),
-        [-1, 0, 1]
-      )
-    ) {
-      return [coord[0], coord[1] + 1];
-    }
+      // N => [-1, 0]
+      if (
+        direction == "N" &&
+        !R.any(
+          (offset) => this.elfAt([coord[0] - 1, coord[1] + offset]),
+          offsets
+        )
+      ) {
+        return [coord[0] - 1, coord[1]];
+      }
+      // S => [1, 0]
+      if (
+        direction == "S" &&
+        !R.any(
+          (offset) => this.elfAt([coord[0] + 1, coord[1] + offset]),
+          offsets
+        )
+      ) {
+        return [coord[0] + 1, coord[1]];
+      }
+      // W => [0, -1]
+      if (
+        direction == "W" &&
+        !R.any(
+          (offset) => this.elfAt([coord[0] + offset, coord[1] - 1]),
+          offsets
+        )
+      ) {
+        return [coord[0], coord[1] - 1];
+      }
+      // E => [0, 1]
+      if (
+        direction == "E" &&
+        !R.any(
+          (offset) => this.elfAt([coord[0] + offset, coord[1] + 1]),
+          offsets
+        )
+      ) {
+        return [coord[0], coord[1] + 1];
+      }
     }
   }
 
   public print(): void {
     const { minX, maxX, minY, maxY } = this.getDimensions();
 
-    const text = R.range(minY - 1, maxY + 1)
+    const text = R.range(minY, maxY + 1)
       .map((row) =>
-        R.range(minX - 1, maxX + 1)
+        R.range(minX, maxX + 1)
           .map((col) => (this.elfAt([row, col]) ? ELF : SPACE))
           .join("")
       )
       .join("\n");
     console.log(this.getDimensions());
     console.log(text);
+  }
+
+  public elfCount(): number {
+    return Object.keys(this.elves).length
   }
 }
 
@@ -190,11 +215,12 @@ const part1 = (input: Input) => {
   const field = new Field(input);
   // field.print();
   R.range(0, STEPS).forEach(() => {
-    field.runStep();
+    const moved = field.runStep();
+    // console.log({ moved });
     // field.print();
   });
   // field.print()
-  return field.getFieldSize();
+  return field.getFieldSize() - field.elfCount();
 };
 
 const part2 = (input: Input) => {
@@ -234,6 +260,7 @@ describe("day X", () => {
     it("answer", () => {
       expect(part1(parse(data))).toBe(-1);
       // 6724 too high
+      // 6400 too high
     });
   });
 
