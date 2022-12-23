@@ -48,9 +48,9 @@ class Field {
   getDimensions() {
     const [rows, cols] = R.transpose(Object.values(this.elves));
     const minY = Math.min(...rows);
-    const maxY = Math.max(...rows)+1;
+    const maxY = Math.max(...rows) + 1;
     const minX = Math.min(...cols);
-    const maxX = Math.max(...cols)+1;
+    const maxX = Math.max(...cols) + 1;
     const width = maxX - minX;
     const height = maxY - minY;
     return { width, height, minX, maxX, minY, maxY };
@@ -85,6 +85,7 @@ class Field {
       } else {
         // otherwise stay
         staying[elfId] = coord;
+        blocked.add(elfId);
       }
     });
     // Calculate new positions with all unblocked moves
@@ -206,7 +207,7 @@ class Field {
   }
 
   public elfCount(): number {
-    return Object.keys(this.elves).length
+    return Object.keys(this.elves).length;
   }
 }
 
@@ -224,7 +225,18 @@ const part1 = (input: Input) => {
 };
 
 const part2 = (input: Input) => {
-  return 0;
+  let steps = 0;
+  const field = new Field(input);
+  // field.print();
+  while (true) {
+    steps += 1;
+    if (steps > 10_000) break
+    const moved = field.runStep();
+    if (moved == 0) break;
+    // field.print();
+  }
+  // field.print()
+  return steps
 };
 
 describe("day X", () => {
@@ -258,19 +270,19 @@ describe("day X", () => {
     });
 
     it("answer", () => {
-      expect(part1(parse(data))).toBe(-1);
+      expect(part1(parse(data))).toBe(3987);
       // 6724 too high
       // 6400 too high
     });
   });
 
-  describe.skip("part 2", () => {
+  describe("part 2", () => {
     it("sample", () => {
-      expect(part2(parse(testData))).toBe(-1);
+      expect(part2(parse(testData))).toBe(20);
     });
 
-    it.skip("answer", () => {
-      expect(part2(parse(data))).toBe(-1);
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(938);
     });
   });
 });
