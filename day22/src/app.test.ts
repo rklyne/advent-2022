@@ -36,6 +36,9 @@ const parse = (text: string): Input => {
   return [board, path];
 };
 
+type Position = [number, number, Facing] // row, col, face
+type Line = [Cell, Position][]
+
 class Board {
   #rows: string[];
   #cols: string[];
@@ -54,7 +57,7 @@ class Board {
     return this.#cols.length;
   }
 
-  getCol(n: number) {
+  getCol(n: number): string {
     return this.#cols[n];
   }
 
@@ -62,7 +65,7 @@ class Board {
     return this.#rows.length;
   }
 
-  getRow(n: number) {
+  getRow(n: number): string {
     return this.#rows[n];
   }
 }
@@ -94,14 +97,27 @@ class Cursor {
     }
   }
 
+  private setPos(pos: Position) {
+    this.#row = pos[0]
+    this.#col = pos[1]
+  }
+
+  private getCol(n: number): Line {
+    return this.board.getCol(n).split("").map((c, idx) => [c as Cell, [idx, n, this.#face]])
+  }
+
+  private getRow(n: number): Line {
+    return this.board.getRow(n).split("").map((c, idx) => [c as Cell, [n, idx, this.#face]])
+  }
+
   private moveDown(n: number) {
-    const col = this.board.getCol(this.#col);
-    this.#row = doMove(col, this.#row, n);
+    const col = this.getCol(this.#col);
+    this.setPos( doLineMove(col, this.#row, n));
   }
 
   private moveRight(n: number) {
-    const row = this.board.getRow(this.#row);
-    this.#col = doMove(row, this.#col, n);
+    const row = this.getRow(this.#row);
+    this.setPos( doLineMove(row, this.#col, n));
   }
 
   turn(turn: Turn): void {
@@ -140,6 +156,12 @@ const part2 = (input: Input) => {
 const countChars = (chr: string, text: string): number => {
   return text.split(chr).length - 1;
 };
+
+const doLineMove = (line: Line, start: number, move: number): Position => {
+  const textLine = line.map(c => c[0]).join("")
+  const newPos = doMove(textLine, start, move)
+  return line[newPos][1]
+}
 
 const doMove = (line: string, start: number, move: number): number => {
   if (move < 0) {
