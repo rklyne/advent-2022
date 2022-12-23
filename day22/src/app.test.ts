@@ -80,11 +80,11 @@ class Board {
   }
 
   getCell(r: number, c: number): Cell {
-    if (r >= this.rMax) throw new Error("oops bad row num");
-    if (c >= this.cMax) throw new Error("oops bad col num");
-    const row = this.#rows[c];
+    if (r >= this.cMax) throw new Error(`oops bad row num ${r}, ${c}, (${this.rMax}x${this.cMax})`);
+    if (c >= this.rMax) throw new Error(`oops bad col num  ${r}, ${c}, (${this.rMax}x${this.cMax})`);
+    const row = this.#rows[r];
     if (!row) throw new Error(`oops not a row ${r}, ${c}, ${row}, (${this.rMax}x${this.cMax})`);
-    const cell = row[r];
+    const cell = row[c];
     if (isCell(cell)) return cell;
     throw new Error(`oops not a cell ${r}, ${c}, ${cell} (${row.length}/${this.rMax}, ${this.cMax})`);
   }
@@ -141,8 +141,8 @@ class Cursor {
   }
 
   protected getCol(n: number): Line {
-    // const w = this.walk(this.currentPosition, this.board.rMax);
-    // if (w[0][1][2] != this.face) throw "oops walk col facing wrong";
+    const w = this.walk(this.currentPosition, this.board.cMax);
+    if (w[0][1][2] != this.face) throw "oops walk col facing wrong";
     // return w
     if (n >= this.board.cMax) throw new Error("oops getting bad col");
     const boardCol = this.board.getCol(n);
@@ -199,8 +199,8 @@ class Cursor {
   protected walk(pos: Position, n: number): [Cell, Position][] {
     if (n <= 0) return [];
     const next = this.next(pos);
-    if (pos[0] > this.cMax) throw new Error("oops bad pos[0]");
-    if (pos[1] > this.rMax) throw new Error("oops bad pos[0]");
+    if (pos[0] >= this.cMax) throw new Error("oops bad pos[0]");
+    if (pos[1] >= this.rMax) throw new Error("oops bad pos[1]");
     const cell = this.board.getCell(pos[0], pos[1]);
     return [[cell, pos], ...this.walk(next, n - 1)];
     throw "oops unhandled end of walk";
