@@ -4,6 +4,7 @@ import Heap from "heap";
 import { data, testData } from "./input";
 
 type Coord = [number, number]; // row, col == y, x
+type Board = [Coord, Coord];
 type Direction = ">" | "<" | "v" | "^";
 type Cell = "#" | "." | Direction;
 type Input = Cell[][]; // row, col == y, x
@@ -25,12 +26,14 @@ const parse = (text: string): Input => {
 
 type SingleBlizzard = [Coord, Direction];
 class Blizzard {
+  private blizzardSets: Set<string>;
   private blizzards: Record<number, SingleBlizzard[]>;
 
   constructor(private input: Input) {
     this.blizzards = {
       0: [],
     };
+    this.blizzardSets = new Set();
     input.forEach((row, rowIdx) => {
       row.forEach((cell, colIdx) => {
         if (isDirection(cell)) {
@@ -58,6 +61,22 @@ class Blizzard {
     return this.blizzards[m];
   }
 
+  private getBlizzardSet(minute: number): Set<string> {
+    if (!(minute in this.blizzardSets)) {
+      this.blizzardSets[minute] = new Set(
+        this.minute(minute).map((coord) => coord.join(","))
+      );
+    }
+    return this.blizzardSets[minute];
+  }
+
+  public occupiesAt(minute: number, pos: Coord): boolean {
+    const blizSet = this.getBlizzardSet(minute);
+    return blizSet.has(pos.join(","));
+    const coords = this.minute(minute);
+    return R.any((c) => c[0] == pos[0] && c[1] == pos[1], coords);
+  }
+
   public minute(m: number): Coord[] {
     const current = this.getBlizzard(m);
     if (!current) throw new Error("oops current");
@@ -83,6 +102,7 @@ const doMove = (pos: Coord, dir: Direction): Coord => {
   if (dir == "v") return [pos[0] + 1, pos[1]];
   throw "oops no move";
 };
+
 const wrap = (coord: Coord, maxRow: number, maxCol: number): Coord => {
   const [row, col] = coord;
 
@@ -92,33 +112,81 @@ const wrap = (coord: Coord, maxRow: number, maxCol: number): Coord => {
     ((col + maxCol - 3) % (maxCol - 2)) + 1,
   ];
 };
+
 const manhattan = (c1: Coord, c2: Coord): number => {
   return Math.abs(c1[0] - c2[0]) + Math.abs(c1[1] - c2[1]);
 };
 
-const findPath = (start: Coord, end: Coord, blizzards: Blizzard): number => {
-  type Node = [Coord, number]; // pos, minutes
+const coordsOnBoard = (
+  pos: Coord,
+  [leftTop, rightBottom]: [Coord, Coord]
+): boolean => {
+  if (pos[0] < leftTop[0]) return false;
+  if (pos[1] < leftTop[1]) return false;
+  if (pos[0] > rightBottom[0]) return false;
+  if (pos[1] > rightBottom[1]) return false;
+  return true;
+};
+
+const coordsEqual = (l: Coord, r: Coord): boolean => {
+  return l[0] == r[0] && l[1] == r[1];
+};
+
+const pathAppend = (path, node) => {
+  return [];
+  return [...path, node];
+};
+
+const findPath = (
+  start: Coord,
+  end: Coord,
+  blizzards: Blizzard,
+  board: [Coord, Coord]
+): number => {
+  type Node = [Coord, number, Coord[]]; // pos, minutes, path
   const costPrediction = (node: Node) => manhattan(node[0], end) + node[1];
   const heap = new Heap<Node>((l, r) => costPrediction(l) - costPrediction(r));
-  heap.push([start, 0]);
-  const directions: Direction[] = ["<", ">", "^", "v"]
-  let limit = 10_000;
+  heap.push([start, 0, [start]]);
+  const directions: Direction[] = ["<", ">", "^", "v"];
+  const MAX_LIMIT = 10_000_000;
+  let steps = 0;
+  const milestones = {};
   while (heap.size()) {
-    if (limit <= 0) throw "oops limit";
-    limit--;
-    const [coord, minutes] = heap.pop();
-    if (R.equals(coord, end)) return minutes
-    const newMinutes = minutes + 1;
-    heap.push([coord, newMinutes]);
-    for (const move of directions ) {
-      heap.push([doMove(coord, move), newMinutes]);
+    if (steps >= MAX_LIMIT) {
+      console.log({ loops: steps, remaining: heap.size(), milestones });
+      throw "oops limit";
     }
+    steps++;
+    const node = heap.pop();
+    const [coord, minutes, path] = node;
+    if (!(minutes in milestones)) milestones[minutes] = steps;
+    if (coordsEqual(coord, end)) {
+      console.log({ loops: steps, remaining: heap.size() });
+      console.log(node);
+      return minutes;
+    }
+    const newMinutes = minutes + 1;
+    for (const dir of directions) {
+      const move = doMove(coord, dir);
+      if (!coordsEqual(move, end) && !coordsOnBoard(move, board)) continue;
+      if (blizzards.occupiesAt(minutes, move)) continue;
+      heap.push([move, newMinutes, pathAppend(path, move)]);
+    }
+    heap.push([coord, newMinutes, pathAppend(path, coord)]);
   }
   throw "oops no find";
 };
 
 const part1 = (input: Input) => {
-  return 0;
+  const board: Board = [
+    [1, 1],
+    [input.length - 2, input[0].length - 2],
+  ];
+  const start: Coord = [0, 1];
+  const end: Coord = doMove(board[1], "v");
+  const blizzards = new Blizzard(input);
+  console.log({ start, end, board });
+  return findPath(start, end, blizzards, board);
 };
 
 const part2 = (input: Input) => {
@@ -163,19 +231,38 @@ describe("day X", () => {
   });
 
   describe("pathfinding", () => {
+    const board: Board = [
+      [1, 1],
+      [5, 5],
+    ];
+
     it("just walks when no blizzards", () => {
       const blizzards = new Blizzard([]);
-      const distance = findPath([0, 1], [6, 5], blizzards);
+      const distance = findPath([0, 1], [6, 5], blizzards, board);
       expect(distance).toBe(10);
+    });
+
+    it("knows what's on the board", () => {
+      expect(coordsOnBoard([2, 2], board)).toBe(true);
+      expect(coordsOnBoard([1, 1], board)).toBe(true);
+      expect(coordsOnBoard([0, 1], board)).toBe(false);
+      expect(coordsOnBoard([1, 0], board)).toBe(false);
+      expect(coordsOnBoard([5, 5], board)).toBe(true);
+      expect(coordsOnBoard([6, 5], board)).toBe(false);
+      expect(coordsOnBoard([5, 6], board)).toBe(false);
+
+      expect(coordsOnBoard([4, 6], [[1,1],[4,6]])).toBe(true);
+      expect(coordsOnBoard([5, 6], [[1,1],[4,6]])).toBe(false);
+      expect(coordsOnBoard([4, 7], [[1,1],[4,6]])).toBe(false);
     });
   });
 
-  describe.skip("part 1", () => {
+  describe("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(18);
     });
 
-    it.skip("answer", () => {
+    it("answer", () => {
       expect(part1(parse(data))).toBe(-1);
     });
   });
