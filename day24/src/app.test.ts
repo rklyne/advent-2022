@@ -43,11 +43,11 @@ class Blizzard {
     });
   }
 
-  get maxCol(): number {
+  get width(): number {
     return this.input[0].length;
   }
 
-  get maxRow(): number {
+  get height(): number {
     return this.input.length;
   }
 
@@ -84,7 +84,7 @@ class Blizzard {
   }
 
   private wrap(coord: Coord): Coord {
-    return wrap(coord, this.maxRow, this.maxCol);
+    return wrap(coord, this.height, this.width);
   }
 
   private move(src: SingleBlizzard): SingleBlizzard {
@@ -103,13 +103,15 @@ const doMove = (pos: Coord, dir: Direction): Coord => {
   throw "oops no move";
 };
 
-const wrap = (coord: Coord, maxRow: number, maxCol: number): Coord => {
+const wrap = (coord: Coord, height: number, width: number): Coord => {
   const [row, col] = coord;
 
   // min 1, max (maxRow-1 - 1)
+  const maxR = height - 2
+  const maxC = width - 2
   return [
-    ((row + maxRow - 3) % (maxRow - 2)) + 1,
-    ((col + maxCol - 3) % (maxCol - 2)) + 1,
+    ((row + maxR - 1) % maxR) + 1,
+    ((col + maxC - 1) % maxC) + 1,
   ];
 };
 
@@ -133,7 +135,7 @@ const coordsEqual = (l: Coord, r: Coord): boolean => {
 };
 
 const pathAppend = (path, node) => {
-  return [];
+  // return [];
   return [...path, node];
 };
 
@@ -146,14 +148,23 @@ const findPath = (
   type Node = [Coord, number, Coord[]]; // pos, minutes, path
   const costPrediction = (node: Node) => manhattan(node[0], end) + node[1];
   const heap = new Heap<Node>((l, r) => costPrediction(l) - costPrediction(r));
-  heap.push([start, 0, [start]]);
+  const startMinute = 0;
+  heap.push([start, startMinute, [start]]);
   const directions: Direction[] = ["<", ">", "^", "v"];
-  const MAX_LIMIT = 10_000_000;
+  const MAX_LIMIT = 1_000_000;
   let steps = 0;
   const milestones = {};
+  const seen = new Set<string>();
+  const addToHeap = (node: Node) => {
+    const id = [...node[0], node[1]].join(",")
+    if (seen.has(id))
+      return
+    heap.push(node)
+    seen.add(id)
+  }
   while (heap.size()) {
     if (steps >= MAX_LIMIT) {
-      console.log({ loops: steps, remaining: heap.size(), milestones });
+      // console.log({ loops: steps, remaining: heap.size(), milestones });
       throw "oops limit";
     }
     steps++;
@@ -161,7 +172,7 @@ const findPath = (
     const [coord, minutes, path] = node;
     if (!(minutes in milestones)) milestones[minutes] = steps;
     if (coordsEqual(coord, end)) {
-      console.log({ loops: steps, remaining: heap.size() });
+      // console.log({ loops: steps, remaining: heap.size() });
       console.log(node);
       return minutes;
     }
@@ -169,10 +180,12 @@ const findPath = (
     for (const dir of directions) {
       const move = doMove(coord, dir);
       if (!coordsEqual(move, end) && !coordsOnBoard(move, board)) continue;
-      if (blizzards.occupiesAt(minutes, move)) continue;
-      heap.push([move, newMinutes, pathAppend(path, move)]);
+      if (blizzards.occupiesAt(newMinutes, move)) continue;
+
+      addToHeap([move, newMinutes, pathAppend(path, move)]);
     }
-    heap.push([coord, newMinutes, pathAppend(path, coord)]);
+    if (!blizzards.occupiesAt(newMinutes, coord))
+      addToHeap([coord, newMinutes, pathAppend(path, coord)]);
   }
   throw "oops no find";
 };
@@ -185,7 +198,7 @@ const part1 = (input: Input) => {
   const start: Coord = [0, 1];
   const end: Coord = doMove(board[1], "v");
   const blizzards = new Blizzard(input);
-  console.log({ start, end, board });
+  // console.log({ start, end, board });
   return findPath(start, end, blizzards, board);
 };
 
@@ -255,6 +268,15 @@ describe("day X", () => {
       expect(coordsOnBoard([5, 6], [[1,1],[4,6]])).toBe(false);
       expect(coordsOnBoard([4, 7], [[1,1],[4,6]])).toBe(false);
     });
+
+    it("can wrap", () => {
+      expect(wrap([1, 1], 4, 6)).toStrictEqual([1,1])
+      expect(wrap([4, 1], 6, 8)).toStrictEqual([4,1])
+      expect(wrap([5, 1], 6, 8)).toStrictEqual([1,1])
+      expect(wrap([0, 1], 6, 8)).toStrictEqual([4,1])
+      expect(wrap([1, 0], 6, 8)).toStrictEqual([1,6])
+      expect(wrap([1, 7], 6, 8)).toStrictEqual([1,1])
+    })
   });
 
   describe("part 1", () => {
@@ -263,7 +285,7 @@ describe("day X", () => {
     });
 
     it("answer", () => {
-      expect(part1(parse(data))).toBe(-1);
+      expect(part1(parse(data))).toBe(262);
     });
   });
 
