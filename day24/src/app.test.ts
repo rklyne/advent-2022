@@ -141,11 +141,17 @@ const pathAppend = (path, node) => {
 
 const findPath = (
   start: Coord,
-  end: Coord,
+  ends: Coord[],
   blizzards: Blizzard,
   board: [Coord, Coord]
 ): number => {
   type Node = [Coord, number, Coord[]]; // pos, minutes, path
+  let end: Coord
+  const nextEnd = () => {
+    end = ends[0]
+    ends = ends.slice(1)
+  }
+  nextEnd()
   const costPrediction = (node: Node) => manhattan(node[0], end) + node[1];
   const heap = new Heap<Node>((l, r) => costPrediction(l) - costPrediction(r));
   const startMinute = 0;
@@ -173,8 +179,15 @@ const findPath = (
     if (!(minutes in milestones)) milestones[minutes] = steps;
     if (coordsEqual(coord, end)) {
       // console.log({ loops: steps, remaining: heap.size() });
-      console.log(node);
+      // console.log(node);
+      if (ends.length) {
+        start = end
+        nextEnd();
+        seen.clear();
+        heap.clear();
+      } else {
       return minutes;
+      }
     }
     const newMinutes = minutes + 1;
     for (const dir of directions) {
@@ -199,11 +212,19 @@ const part1 = (input: Input) => {
   const end: Coord = doMove(board[1], "v");
   const blizzards = new Blizzard(input);
   // console.log({ start, end, board });
-  return findPath(start, end, blizzards, board);
+  return findPath(start, [end], blizzards, board);
 };
 
 const part2 = (input: Input) => {
-  return 0;
+  const board: Board = [
+    [1, 1],
+    [input.length - 2, input[0].length - 2],
+  ];
+  const start: Coord = [0, 1];
+  const end: Coord = doMove(board[1], "v");
+  const blizzards = new Blizzard(input);
+  // console.log({ start, end, board });
+  return findPath(start, [end, start, end], blizzards, board);
 };
 
 describe("day X", () => {
@@ -251,7 +272,7 @@ describe("day X", () => {
 
     it("just walks when no blizzards", () => {
       const blizzards = new Blizzard([]);
-      const distance = findPath([0, 1], [6, 5], blizzards, board);
+      const distance = findPath([0, 1], [[6, 5]], blizzards, board);
       expect(distance).toBe(10);
     });
 
@@ -289,13 +310,13 @@ describe("day X", () => {
     });
   });
 
-  describe.skip("part 2", () => {
+  describe("part 2", () => {
     it("sample", () => {
-      expect(part2(parse(testData))).toBe(-1);
+      expect(part2(parse(testData))).toBe(54);
     });
 
-    it.skip("answer", () => {
-      expect(part2(parse(data))).toBe(-1);
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(785);
     });
   });
 });
