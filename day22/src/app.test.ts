@@ -277,7 +277,7 @@ class BoxCursor extends Cursor {
     // this.#col = board.getRow(0).indexOf(".");
     // this.#face = 0;
     this.#squareSize = Math.max(board.cMax, board.rMax) / 4;
-    console.log({ squareSize: this.#squareSize });
+    // console.log({ squareSize: this.#squareSize });
     if (this.#squareSize != Math.min(board.cMax, board.rMax) / 3)
       throw "oops square";
     this.stitchMap = stitch(board);
@@ -305,12 +305,12 @@ class BoxCursor extends Cursor {
     };
     if (!R.equals(next, wrap(next))) {
       // this shouldn't happen when edges are all stitch mapped
-      throw "oops wrapping :("
+      throw "oops wrapping :(";
     }
     next = wrap(next);
     let nextCell: Cell = this.board.getCell(next[0], next[1]);
     if (nextCell == " ") {
-      console.log({ msg: "oh no :(" });
+      throw "oops next cell blank";
     }
     return [[cell, pos], ...this.walk(next, n - 1)];
   }
@@ -351,7 +351,7 @@ const part2 = (input: Input) => {
   for (const [move, turn] of path) {
     cursor.move(move);
     cursor.turn(turn);
-    console.log({move, turn, pos: cursor.pos})
+    // console.log({ move, turn, pos: cursor.pos });
   }
   const { row, col, facing } = cursor.pos;
   console.log(cursor.pos);
@@ -483,8 +483,9 @@ const stitch = (board: Board): Record<string, Position> => {
     }
     return [turnPosition(ahead, -relativeTurn), "inside"];
   };
-  let limit = 1000;
-  const pairsTodo: [Position, Position][] = [[left, right]];
+  let limit = 30000;
+  type Todo = [Position, Position];
+  const pairsTodo: Todo[] = [[left, right]];
   let walkPos = right;
 
   let perimeterLength = 0;
@@ -500,7 +501,7 @@ const stitch = (board: Board): Record<string, Position> => {
     walkPos = nextPos[0];
   } while (!R.equals(walkPos, right));
 
-  limit = 1000;
+  limit = 30000;
   let stitches = 0;
   // console.log(pairsTodo);
   while (pairsTodo.length > 0) {
@@ -526,7 +527,11 @@ const stitch = (board: Board): Record<string, Position> => {
     //
     stitched[lId] = turnPosition(r, 2);
     stitched[rId] = turnPosition(l, 2);
-    const nextPair: [Position, Position] = [next(l, -1)[0], next(r, 1)[0]];
+    const nextL = next(l, -1);
+    const nextR = next(r, 1);
+    // Can't take two outside turns together and stitch them - cubes don't work li that.
+    if (nextL[1] == "outside" && nextR[1] == "outside") continue
+    const nextPair: Todo = [nextL[0], nextR[0]];
     // console.log({nextPair, l: pairsTodo.length})
     pairsTodo.push(nextPair);
   }
@@ -651,8 +656,8 @@ describe("day 22", () => {
       expect(part2(parse(testData))).toBe(5031);
     });
 
-    it.skip("answer", () => {
-      expect(part2(parse(data))).toBe(-1);
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(4578);
     });
   });
 });
