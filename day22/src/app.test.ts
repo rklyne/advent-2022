@@ -269,7 +269,7 @@ class BoxCursor extends Cursor {
   // #col: number;
   // #face: Facing;
   #squareSize;
-  stitchMap: Record<string, Position>
+  stitchMap: Record<string, Position>;
 
   constructor(board: Board) {
     super(board);
@@ -288,12 +288,13 @@ class BoxCursor extends Cursor {
     if (pos[0] >= this.cMax) throw new Error("oops bad pos[0]");
     if (pos[1] >= this.rMax) throw new Error("oops bad pos[1]");
     const cell = this.board.getCell(pos[0], pos[1]);
-    const myId = posId(pos)
-    let next = this.next(pos);
-    let nextId = posId(next);
+    const myId = posId(pos);
+    let next;
     if (myId in this.stitchMap) {
-      next = this.stitchMap[myId]
+      next = this.stitchMap[myId];
       // console.log({next, nextId, pos})
+    } else {
+      next = this.next(pos);
     }
     const wrap = (pos: Position): Position => {
       return [
@@ -302,12 +303,16 @@ class BoxCursor extends Cursor {
         pos[2],
       ];
     };
-    next = wrap(next)
+    if (!R.equals(next, wrap(next))) {
+      // this shouldn't happen when edges are all stitch mapped
+      throw "oops wrapping :("
+    }
+    next = wrap(next);
     let nextCell: Cell = this.board.getCell(next[0], next[1]);
     if (nextCell == " ") {
-      console.log({msg: "oh no :("})
+      console.log({ msg: "oh no :(" });
     }
-    return [[nextCell, next], ...this.walk(next, n - 1)];
+    return [[cell, pos], ...this.walk(next, n - 1)];
   }
 
   protected getCol(n: number): Line {
@@ -346,7 +351,7 @@ const part2 = (input: Input) => {
   for (const [move, turn] of path) {
     cursor.move(move);
     cursor.turn(turn);
-    // console.log(cursor.pos)
+    console.log({move, turn, pos: cursor.pos})
   }
   const { row, col, facing } = cursor.pos;
   console.log(cursor.pos);
@@ -600,8 +605,8 @@ describe("day 22", () => {
           .getRow(11111)
           .map(([c, p]) => c)
           .join("")
-      ).toBe(".#....#....#....");
-      cursor.move(1)
+      ).toBe("..#....#....#...");
+      cursor.move(1);
       expect(cursor.currentPosition).toStrictEqual([8, 13, FaceDown]);
     });
 
