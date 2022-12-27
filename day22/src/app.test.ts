@@ -269,6 +269,7 @@ class BoxCursor extends Cursor {
   // #col: number;
   // #face: Facing;
   #squareSize;
+  stitchMap: Record<string, Position>
 
   constructor(board: Board) {
     super(board);
@@ -279,6 +280,7 @@ class BoxCursor extends Cursor {
     console.log({ squareSize: this.#squareSize });
     if (this.#squareSize != Math.min(board.cMax, board.rMax) / 3)
       throw "oops square";
+    this.stitchMap = stitch(board);
   }
 
   protected walk(pos: Position, n: number): [Cell, Position][] {
@@ -286,9 +288,13 @@ class BoxCursor extends Cursor {
     if (pos[0] >= this.cMax) throw new Error("oops bad pos[0]");
     if (pos[1] >= this.rMax) throw new Error("oops bad pos[1]");
     const cell = this.board.getCell(pos[0], pos[1]);
+    const myId = posId(pos)
     let next = this.next(pos);
-    let possibles: Position[] = [];
-    const square = this.#squareSize;
+    let nextId = posId(next);
+    if (myId in this.stitchMap) {
+      next = this.stitchMap[myId]
+      // console.log({next, nextId, pos})
+    }
     const wrap = (pos: Position): Position => {
       return [
         (pos[0] + this.cMax) % this.cMax,
@@ -296,51 +302,12 @@ class BoxCursor extends Cursor {
         pos[2],
       ];
     };
-    if (pos[2] == FaceRight) {
-      const fromTop = next[0] % square;
-      const top = next[0] - fromTop + 1;
-      const right = next[1];
-      possibles = [
-        next,
-        // right one + up one square, turning left
-        [top - 1, right + fromTop, doTurn(next[2], -1)],
-        // right one + down one square, turning right
-        [top + square, right + 1 + (square - fromTop), doTurn(next[2], 1)],
-        // right one + up two, turning around
-        [top - 1 - fromTop - square, right + square, doTurn(next[2], -2)],
-      ];
-    } else if (pos[2] == FaceLeft) {
-      possibles = [next];
-    } else if (pos[2] == FaceUp) {
-      possibles = [next];
-    } else if (pos[2] == FaceDown) {
-      const fromLeft = next[1] % square;
-      const left = next[1] - fromLeft + 1;
-      const top = next[1] - square + 1;
-      possibles = [
-        next,
-        // up one, right one, turn left
-        [left + square + 1, top - fromLeft - 1, doTurn(next[2], -1)],
-      ];
+    next = wrap(next)
+    let nextCell: Cell = this.board.getCell(next[0], next[1]);
+    if (nextCell == " ") {
+      console.log({msg: "oh no :("})
     }
-    const cells = [];
-    let nextCell: Cell;
-    for (let nextPos of possibles) {
-      nextPos = wrap(nextPos);
-      try {
-        nextCell = this.board.getCell(nextPos[0], nextPos[1]);
-      } catch (err) {
-        // if there's no cell there then continue
-      }
-      cells.push(nextCell);
-      if (nextCell != " ") {
-        return [[nextCell, pos], ...this.walk(nextPos, n - 1)];
-      }
-    }
-
-    throw new Error(
-      `oops walk end ${pos}, ${JSON.stringify(possibles)}->"${cells.join("")}"`
-    );
+    return [[nextCell, next], ...this.walk(next, n - 1)];
   }
 
   protected getCol(n: number): Line {
@@ -456,8 +423,7 @@ const doMoveIter = (line: string, start: number, move: number) => {
 
 const posId = (pos: Position): string => pos.join(",");
 
-const stitch = (input: Input): Record<string, Position> => {
-  const board = new Board(input[0]);
+const stitch = (board: Board): Record<string, Position> => {
   const seen = new Set<string>();
   const stitched = {};
   // 1. find start
@@ -620,11 +586,11 @@ describe("day 22", () => {
   describe("connecting squares", () => {
     it("can stitch edges together", () => {
       const input = parse(testData);
-      const stitchMap = stitch(input);
+      const stitchMap = stitch(new Board(input[0]));
       expect(stitchMap["6,11,0"]).toStrictEqual([8, 13, 1]);
     });
 
-    it.skip("can move around a cube", () => {
+    it("can move around a cube", () => {
       const board = new Board(parse(testData)[0]);
       const cursor = new BoxCursor(board);
       cursor.setPos([6, 11, FaceRight]);
@@ -635,7 +601,8 @@ describe("day 22", () => {
           .map(([c, p]) => c)
           .join("")
       ).toBe(".#....#....#....");
-      expect(cursor.pos).toStrictEqual([13, 9, FaceDown]);
+      cursor.move(1)
+      expect(cursor.currentPosition).toStrictEqual([8, 13, FaceDown]);
     });
 
     describe.skip("4x3", () => {
@@ -674,7 +641,7 @@ describe("day 22", () => {
     });
   });
 
-  describe.skip("part 2", () => {
+  describe("part 2", () => {
     it("sample", () => {
       expect(part2(parse(testData))).toBe(5031);
     });
