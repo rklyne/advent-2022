@@ -138,8 +138,8 @@ class Cursor {
   }
 
   public setPos(pos: Position) {
-    if (this.row >= this.board.cMax) throw "oops pos row";
-    if (this.col >= this.board.rMax) throw "oops pos col";
+    // if (this.row >= this.board.cMax) throw new Error(`oops pos row ${pos} (${this.board.rMax}x${this.board.cMax})`);
+    // if (this.col >= this.board.rMax) throw new Error(`oops pos col ${pos} (${this.board.rMax}x${this.board.cMax})`);
     this.row = pos[0];
     this.col = pos[1];
     this.face = pos[2];
@@ -174,17 +174,31 @@ class Cursor {
     return w;
   }
 
-  protected next(pos: Position): Position {
+  public next(pos: Position, wrapPosition = true): Position {
+    let nextPos: Position;
+    const wrap = (pos: Position): Position => {
+      return [
+        (pos[0] + this.cMax) % this.cMax,
+        (pos[1] + this.rMax) % this.rMax,
+        pos[2],
+      ];
+    };
     switch (pos[2]) {
       case FaceRight:
-        return [pos[0], (pos[1] + 1) % this.rMax, pos[2]];
+        nextPos = [pos[0], pos[1] + 1, pos[2]];
+        break;
       case FaceDown:
-        return [(pos[0] + 1) % this.cMax, pos[1], pos[2]];
+        nextPos = [pos[0] + 1, pos[1], pos[2]];
+        break;
       case FaceLeft:
-        return [pos[0], (pos[1] + this.rMax - 1) % this.rMax, pos[2]];
+        nextPos = [pos[0], pos[1] - 1, pos[2]];
+        break;
       case FaceUp:
-        return [(pos[0] + this.cMax - 1) % this.cMax, pos[1], pos[2]];
+        nextPos = [pos[0] - 1, pos[1], pos[2]];
+        break;
     }
+    if (!wrapPosition) return nextPos;
+    return wrap(nextPos);
     throw "oops unknown facing";
   }
 
@@ -233,13 +247,21 @@ class Cursor {
   }
 
   turn(turn: Turn): void {
-    if (turn == LEFT) this.face = doTurn(this.face, -1);
-    if (turn == RIGHT) this.face = doTurn(this.face, 1);
+    if (turn == LEFT) this.turnRelative(-1);
+    if (turn == RIGHT) this.turnRelative(1);
+  }
+
+  turnRelative(amount: number): void {
+    this.face = doTurn(this.face, amount);
   }
 }
 
 const doTurn = (f: Facing, amount: number): Facing => {
   return ((f + 4 + amount) % 4) as Facing;
+};
+
+const turnPosition = (p: Position, amount: number): Position => {
+  return [p[0], p[1], ((p[2] + 4 + amount) % 4) as Facing];
 };
 
 class BoxCursor extends Cursor {
@@ -271,9 +293,9 @@ class BoxCursor extends Cursor {
       return [
         (pos[0] + this.cMax) % this.cMax,
         (pos[1] + this.rMax) % this.rMax,
-        pos[2]
-      ]
-    }
+        pos[2],
+      ];
+    };
     if (pos[2] == FaceRight) {
       const fromTop = next[0] % square;
       const top = next[0] - fromTop + 1;
@@ -298,13 +320,13 @@ class BoxCursor extends Cursor {
       possibles = [
         next,
         // up one, right one, turn left
-        [left + square + 1, top  - fromLeft - 1, doTurn(next[2], -1)],
+        [left + square + 1, top - fromLeft - 1, doTurn(next[2], -1)],
       ];
     }
     const cells = [];
     let nextCell: Cell;
     for (let nextPos of possibles) {
-      nextPos = wrap(nextPos)
+      nextPos = wrap(nextPos);
       try {
         nextCell = this.board.getCell(nextPos[0], nextPos[1]);
       } catch (err) {
@@ -432,6 +454,116 @@ const doMoveIter = (line: string, start: number, move: number) => {
   return pos;
 };
 
+const posId = (pos: Position): string => pos.join(",");
+
+const stitch = (input: Input): Record<string, Position> => {
+  const board = new Board(input[0]);
+  const seen = new Set<string>();
+  const stitched = {};
+  // 1. find start
+  // - 0, 0
+  // - move right until hit
+  // - move down until hit.
+  // - this is an inside corner
+  const startCol =
+    Math.min(board.getRow(0).indexOf("#"), board.getRow(0).indexOf(".")) - 1;
+  const startRow =
+    Math.min(
+      board.getCol(startCol).indexOf("#"),
+      board.getCol(startCol).indexOf(".")
+    ) - 1;
+  // - start on each side of this corner
+  let left: Position = [startRow + 1, startCol, FaceUp];
+  let right: Position = [startRow, startCol + 1, FaceLeft];
+  let leftId = posId(left);
+  let rightId = posId(right);
+  const cursor = new Cursor(board);
+  const doMove = (pos: Position, relativeTurn: number): Position => {
+    cursor.setPos(pos);
+    cursor.turnRelative(relativeTurn);
+    cursor.setPos(cursor.next(cursor.currentPosition, false));
+    cursor.turnRelative(-relativeTurn);
+    return cursor.currentPosition;
+  };
+  const getCell = (pos: Position): Cell => {
+    try {
+      return board.getCell(pos[0], pos[1]);
+    } catch (e) {
+      return " ";
+    }
+  };
+  const next = (
+    pos: Position,
+    relativeTurn: number
+  ): [Position, "inside" | "outside" | "straight"] => {
+    // - if next step in line is part of the edge, continue
+    //   - else if its a turn then turn - one of these shapes:
+    //     ##  ..
+    //     .#  .#
+    //     ^   ^
+    //
+    const nextPos = doMove(pos, relativeTurn);
+    if (getCell(nextPos) == " ") {
+      return [turnPosition(pos, relativeTurn), "outside"];
+    }
+    const ahead = doMove(nextPos, 0);
+    if (getCell(ahead) == " ") {
+      return [nextPos, "straight"];
+    }
+    return [turnPosition(ahead, -relativeTurn), "inside"];
+  };
+  let limit = 1000;
+  const pairsTodo: [Position, Position][] = [[left, right]];
+  let walkPos = right;
+
+  let perimeterLength = 0;
+  do {
+    perimeterLength++;
+    limit--;
+    if (limit <= 0) throw "oops stitch walk limit";
+
+    const nextPos = next(walkPos, 1);
+    if (nextPos[1] == "inside") {
+      pairsTodo.push([walkPos, nextPos[0]]);
+    }
+    walkPos = nextPos[0];
+  } while (!R.equals(walkPos, right));
+
+  limit = 1000;
+  let stitches = 0;
+  // console.log(pairsTodo);
+  while (pairsTodo.length > 0) {
+    stitches++;
+    limit--;
+    if (limit <= 0) {
+      throw "oops stitch limit";
+    }
+    const [l, r] = pairsTodo.shift();
+    const lId = posId(l);
+    const rId = posId(r);
+    if (seen.has(lId) || seen.has(rId)) {
+      continue;
+    }
+    seen.add(lId);
+    seen.add(rId);
+    // 2. walk around the edges from this point in two opposite directions.
+    // - if next step in line is part of the edge, continue
+    //   - else if its a turn then turn - one of these shapes:
+    //     ##  ..
+    //     .#  .#
+    //     ^   ^
+    //
+    stitched[lId] = turnPosition(r, 2);
+    stitched[rId] = turnPosition(l, 2);
+    const nextPair: [Position, Position] = [next(l, -1)[0], next(r, 1)[0]];
+    // console.log({nextPair, l: pairsTodo.length})
+    pairsTodo.push(nextPair);
+  }
+  // - stop when the edges meet again
+  // console.log({ perimeterLength, stitches });
+  return stitched;
+};
+
 describe("day 22", () => {
   it("can parse", () => {
     const parsed = parse(testData);
@@ -486,7 +618,13 @@ describe("day 22", () => {
   });
 
   describe("connecting squares", () => {
-    it("can move around a cube", () => {
+    it("can stitch edges together", () => {
+      const input = parse(testData);
+      const stitchMap = stitch(input);
+      expect(stitchMap["6,11,0"]).toStrictEqual([8, 13, 1]);
+    });
+
+    it.skip("can move around a cube", () => {
       const board = new Board(parse(testData)[0]);
       const cursor = new BoxCursor(board);
       cursor.setPos([6, 11, FaceRight]);
@@ -499,6 +637,7 @@ describe("day 22", () => {
       ).toBe(".#....#....#....");
       expect(cursor.pos).toStrictEqual([13, 9, FaceDown]);
     });
+
     describe.skip("4x3", () => {
       const squareMap = [
         // ..#.
@@ -535,7 +674,7 @@ describe("day 22", () => {
     });
   });
 
-  describe("part 2", () => {
+  describe.skip("part 2", () => {
     it("sample", () => {
       expect(part2(parse(testData))).toBe(5031);
     });
