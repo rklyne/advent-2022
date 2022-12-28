@@ -134,7 +134,7 @@ const solve = (blueprint: Blueprint, time: number): Node => {
     });
   });
   maxRequirements[GEODE] = 100000;
-  console.log(maxRequirements);
+  // console.log(maxRequirements);
 
   const nodes: Node[] = [];
   const seen = new Set<string>();
@@ -148,7 +148,7 @@ const solve = (blueprint: Blueprint, time: number): Node => {
     const choices = [];
     // If there isn't a way to to build enough geode to beat `best` then don't search this path
     const maxGeode =
-      supplies.geode + (minutes * (minutes - 1)) / 2 + robots.geode * minutes;
+      supplies.geode + (minutes * (minutes + 1)) / 2 + robots.geode * minutes;
     if (maxGeode < best[1].geode) {
       return [];
     }
@@ -201,7 +201,7 @@ const solve = (blueprint: Blueprint, time: number): Node => {
     return choices;
   };
   nodes.push([time, initSupplies, initRobots, []]);
-  let limit = 8_000_000;
+  let limit = 80_000_000;
   while (nodes.length > 0) {
     limit--;
     steps++;
@@ -215,9 +215,10 @@ const solve = (blueprint: Blueprint, time: number): Node => {
     // throw "oops obsidian " + minutes + JSON.stringify({ supplies, robots });
     if (minutes <= 0) {
       if (
-        supplies.geode > best[1].geode ||
-        (supplies.geode == best[1].geode &&
-          supplies.obsidian > best[1].obsidian)
+        supplies.geode > best[1].geode
+        // ||
+        // (supplies.geode == best[1].geode &&
+        //   supplies.obsidian > best[1].obsidian)
       ) {
         best = node;
         // console.log({ best });
@@ -227,7 +228,7 @@ const solve = (blueprint: Blueprint, time: number): Node => {
     for (const choice of getChoices(minutes, supplies, robots, path))
       nodes.push(choice);
   }
-  console.log({ best, steps, seenSkip, counters, choices: best[3].join() });
+  // console.log({ best, steps, seenSkip, counters, choices: best[3].join() });
   // tellStory(best[3], blueprint);
   return best;
 };
@@ -238,7 +239,7 @@ const part1 = (input: Input) => {
   const values: number[] = input.map((blueprint) =>
     geodesInMinutes(blueprint, MINUTES)
   );
-  console.log({ values });
+  // console.log({ values });
   values.forEach((geodes, idx) => {
     total += (idx + 1) * geodes;
   });
@@ -246,7 +247,16 @@ const part1 = (input: Input) => {
 };
 
 const part2 = (input: Input) => {
-  return 0;
+  const MINUTES = 32;
+  let total = 1;
+  const values: number[] = input.slice(0, 3).map((blueprint) =>
+    geodesInMinutes(blueprint, MINUTES)
+  );
+  console.log({ values });
+  values.forEach((geodes, idx) => {
+    total *= geodes
+  });
+  return total;
 };
 
 describe("day X", () => {
@@ -318,13 +328,13 @@ describe("day X", () => {
     });
   });
 
-  describe.skip("part 2", () => {
+  describe("part 2", () => {
     it("sample", () => {
-      expect(part2(parse(testData))).toBe(-1);
+      expect(part2(parse(testData))).toBe(62 * 56);
     });
 
-    it.skip("answer", () => {
-      expect(part2(parse(data))).toBe(-1);
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(6000);
     });
   });
 });
