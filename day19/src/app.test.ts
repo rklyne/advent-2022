@@ -13,6 +13,12 @@ const ORE: Resource = "ore";
 const CLAY: Resource = "clay";
 const OBSIDIAN: Resource = "obsidian";
 const GEODE: Resource = "geode";
+const initSupplies: Supplies = {
+  ore: 0,
+  clay: 0,
+  obsidian: 0,
+  geode: 0,
+};
 
 const parse = (text: string): Input => {
   // Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
@@ -38,8 +44,73 @@ const parse = (text: string): Input => {
     });
 };
 
-const geodesInMinutes = (blueprint: Blueprint, minutes: number): number => {
-  type Node = [number, Supplies, Supplies, Resource?]; // minutesLeft, supplies, robots, building
+const roundsUntilAfford = (
+  recipe: Ingredients,
+  supplies: Supplies,
+  robots: Supplies
+): number => {
+  return Math.min(
+    10000,
+    Math.max(
+      ...recipe.map(([resource, quantity]) =>
+        Math.max(
+          0,
+          Math.ceil((quantity - supplies[resource]) / robots[resource])
+        )
+      )
+    )
+  );
+};
+
+const canAfford = (recipe: Ingredients, supplies: Supplies): boolean => {
+  if (!recipe) throw new Error("" + recipe);
+  if (!supplies) throw new Error("" + supplies);
+  return R.all(([item, cost]) => supplies[item] >= cost, recipe);
+};
+
+const harvest = (supplies: Supplies, robots: Supplies): void => {
+  Object.entries(robots).forEach(([resource, harvest]) => {
+    supplies[resource] += harvest;
+  });
+};
+
+const buy = (recipe: Ingredients, supplies: Supplies): void => {
+  recipe.forEach(([name, cost]) => {
+    supplies[name] -= cost;
+    // if (supplies[name] < 0) throw "oops in debt";
+  });
+};
+
+const tellStory = (
+  choices: [Resource, number][],
+  blueprint: Blueprint
+): void => {
+  const supplies = { ...initSupplies };
+  const robots = { ...initSupplies, ore: 1 };
+  const choiceMinutes = {};
+  choices.forEach(([resource, minute]) => (choiceMinutes[minute] = resource));
+  for (const minute of R.range(1, 25)) {
+    const buying = choiceMinutes[minute];
+    if (buying) {
+      buy(blueprint[buying], supplies);
+    }
+    harvest(supplies, robots);
+    if (buying) {
+      robots[buying] += 1;
+    }
+    const msg = `== Minute ${minute} ==
+${robots.ore} ore-collecting robots; you now have ${supplies.ore} ore
+${robots.clay} clay-collecting robots; use now have ${supplies.clay} clay.
+${robots.obsidian} obsidian-collecting robots; you now have ${supplies.obsidian} obsidian.
+${robots.geode} geode-cracking robots; you now have ${supplies.geode} geodes.
+
+`;
+    console.log(msg);
+  }
+};
+
+const geodesInMinutes = (blueprint: Blueprint, time: number): number => {
+  type Node = [number, Supplies, Supplies, [Resource, number][]]; // minutesLeft, supplies, robots, building
   const initSupplies: Supplies = {
     ore: 0,
     clay: 0,
@@ -58,81 +129,70 @@ const geodesInMinutes = (blueprint: Blueprint, minutes: number): number => {
     });
   });
 
-  const canAfford = (recipe: Ingredients, supplies: Supplies): boolean => {
-    if (!recipe) throw new Error("" + recipe);
-    if (!supplies) throw new Error("" + supplies);
-    return R.all(([item, cost]) => supplies[item] >= cost, recipe);
-  };
   const nodes: Node[] = [];
-  const roundsUntilAfford = (
-    recipe: Ingredients,
-    supplies: Supplies,
-    robots: Supplies
-  ): number => {
-    return Math.min(
-      100,
-      Math.max(
-        ...recipe.map(([resource, quantity]) =>
-          Math.max(
-            0,
-            Math.ceil((quantity - supplies[resource]) / robots[resource])
-          )
-        )
-      )
-    );
-  };
-  const counters: Record<number, number> = {}
-  R.range(0, 10).forEach(n => counters[n] = 0)
-  const addChoices = (minutes, supplies, robots) => {
-    // nodes.push([minutes - 1, { ...supplies }, { ...robots }, undefined]);
+  const seen = new Set<string>();
+  let best: Node = [time, initSupplies, initRobots, []];
+  let steps = 0;
+  let seenSkip = 0;
+
+  const counters: Record<number, number> = {};
+  R.range(0, 10).forEach((n) => (counters[n] = 0));
+  const getChoices = (minutes, supplies, robots, path): Node[] => {
+    const choices = [];
     resources.forEach((resource) => {
-      // skip if we aren't making the stuff to build this robot
-      counters[0] += 1
-      if (R.any(([item, quantity]) => robots[item] == 0, blueprint[resource])) {
-        console.log("no robots to build " + resource + " " + JSON.stringify(blueprint[resource]) + " " + JSON.stringify(robots) )
+      let counter = 0;
+      counters[counter++] += 1;
+
+      // If there isn't a way to to build enough geode to beat `best` then don't search this path
+      const maxGeode =
+        supplies.geode + (minutes * (minutes + 1)) / 2 + robots.geode * minutes;
+      if (maxGeode < best[1].geode) {
+        // console.log(`not possible to beat ${best} with ${supplies.geode} geodes, ${robots.geode} robots and ${minutes} time`)
         return;
       }
-      counters[1] += 1
+      counters[counter++] += 1;
+
       // skip if we have enough of this robot to build anything per turn
       if (resource != GEODE && maxRequirements[resource] <= robots[resource]) {
         // console.log({maxedRobots: robots, resource})
-        return
+        return;
       }
-      counters[2] += 1
-      // TODO: IF there isn't a way to to build enough geode to beat `best` then don't search this path
-      if (true || canAfford(blueprint[resource], supplies)) {
-        // console.log(`queuing up build - ${resource}`)
-        const skipRounds = roundsUntilAfford(
-          blueprint[resource],
-          supplies,
-          robots
-        );
-        const mySupplies = {...supplies}
-        if (skipRounds) {
-          if (skipRounds > 1000) throw "oops rounds";
-          if (skipRounds < 0) throw "oops rounds low";
-          // console.log({ skipRounds });
-          R.range(0, skipRounds).forEach(() => harvest(mySupplies, robots));
-        }
-        const timeUntil = minutes - 1 - skipRounds;
-        if (timeUntil < 0) return;
-        nodes.push([timeUntil, mySupplies, { ...robots }, resource]);
-        counters[3] += 1
+      counters[counter++] += 1;
+
+      // skip if we aren't making the stuff to build this robot
+      if (R.any(([item, quantity]) => robots[item] == 0, blueprint[resource])) {
+        // console.log("no robots to build " + resource + " " + JSON.stringify(blueprint[resource]) + " " + JSON.stringify(robots) )
+        return;
       }
+      counters[counter++] += 1;
+
+      const skipRounds = Math.max(
+        roundsUntilAfford(blueprint[resource], supplies, robots),
+        0
+      ) + 1;
+      const mySupplies = { ...supplies };
+      const myRobots = { ...robots };
+      R.range(0, skipRounds).forEach(() => harvest(mySupplies, robots));
+      const timeUntil = minutes - skipRounds;
+      if (timeUntil < 0) {
+        counters[counter + 2] += 1;
+        return;
+      }
+      buy(blueprint[resource], mySupplies);
+      // if (canAfford(blueprint[resource], mySupplies)) throw "oops waited too long"
+      myRobots[resource] += 1;
+      choices.push([
+        timeUntil,
+        mySupplies,
+        myRobots,
+        [...path, [resource, time - timeUntil]],
+      ]);
+      counters[counter] += 1;
     });
+    return choices;
   };
-  const harvest = (supplies: Supplies, robots: Supplies) => {
-    Object.entries(robots).forEach(([resource, harvest]) => {
-      supplies[resource] += harvest;
-      // console.log(`harvest ${harvest} ${resource}`)
-    });
-  };
-  addChoices(minutes, initSupplies, initRobots);
-  let limit = 1_000_000;
-  const seen = new Set<string>();
-  let best = 0;
-  let steps = 0;
-  let seenSkip = 0;
+  nodes.push([time, initSupplies, initRobots, []]);
+  let limit = 8_000_000;
   while (nodes.length > 0) {
     limit--;
     steps++;
@@ -141,46 +201,22 @@ const geodesInMinutes = (blueprint: Blueprint, minutes: number): number => {
       throw "oops limit";
     }
     const node = nodes.pop();
-    const [minutes, supplies, robots, toBuy] = node;
+    const [minutes, supplies, robots, path] = node;
     // if (robots.obsidian > 0)
-      // throw "oops obsidian " + minutes + JSON.stringify({ supplies, robots });
+    // throw "oops obsidian " + minutes + JSON.stringify({ supplies, robots });
     if (minutes <= 0) {
-      if (supplies.geode > best) {
-        best = supplies.geode;
-        console.log({ best });
+      if (supplies.geode > best[1].geode) {
+        best = node;
+        // console.log({ best });
       }
       continue;
     }
-    // const nodeId = [
-    //   minutes,
-    //   "|",
-    //   ...Object.entries(supplies),
-    //   "|",
-    //   ...Object.entries(robots),
-    //   toBuy,
-    // ].join();
-    // if (seen.has(nodeId)) {
-    //   seenSkip += 1;
-    //   continue;
-    // }
-    // seen.add(nodeId);
-    // spend
-    const buying = toBuy && canAfford(blueprint[toBuy], supplies);
-    if (buying) {
-      blueprint[toBuy].forEach(([name, cost]) => {
-        supplies[name] -= cost;
-      });
-    }
-    // harvest
-    harvest(supplies, robots);
-    if (buying) {
-      // console.log({ buying, toBuy });
-      robots[toBuy] += 1;
-    }
-    addChoices(minutes, supplies, robots);
+    for (const choice of getChoices(minutes, supplies, robots, path))
+      nodes.push(choice);
   }
-  console.log({ best, steps, seenSkip, counters });
-  return best;
+  console.log({ best, steps, seenSkip, counters, choices: best[3].join() });
+  // tellStory(best[3], blueprint);
+  return best[1].geode;
 };
 
 const part1 = (input: Input) => {
@@ -210,6 +246,17 @@ describe("day X", () => {
     );
   });
 
+  it("know whne it can afford a thing", () => {
+    const supplies = { ...initSupplies };
+    const robots = { ...initSupplies, ore: 2, clay: 2 };
+    const recipe: Ingredients = [
+      [ORE, 3],
+      [CLAY, 14],
+    ];
+    expect(roundsUntilAfford(recipe, supplies, robots)).toBe(7);
+    expect(roundsUntilAfford(recipe, { ...supplies, clay: 6 }, robots)).toBe(4);
+  });
+
   it("can simulate geode harvest", () => {
     const geodes = geodesInMinutes(
       {
@@ -229,7 +276,7 @@ describe("day X", () => {
     expect(geodes).toBe(9);
   });
 
-  describe.skip("part 1", () => {
+  describe("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(33);
     });
