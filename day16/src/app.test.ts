@@ -95,12 +95,10 @@ class State {
   }
 
   scoreIncrement(): number {
-    return (
-      R.sum(
-        this.junctions
-          .filter((j) => this.open.includes(j.name))
-          .map((j) => j.flowRate)
-      )
+    return R.sum(
+      this.junctions
+        .filter((j) => this.open.includes(j.name))
+        .map((j) => j.flowRate)
     );
   }
 }
@@ -229,6 +227,7 @@ type BasicState = {
   id: string;
   score: number;
 };
+
 const part1Search = (map: PipeMap, steps = 30) => {
   const initialState = new State(map);
   const counters: Record<string, number> = {};
@@ -296,18 +295,18 @@ const part1Search = (map: PipeMap, steps = 30) => {
 
       for (const [nextPlace, cost, junction] of paths[node.name]) {
         if (state.open.includes(nextPlace)) {
-          count("already_open")
-          continue
-        };
+          count("already_open");
+          continue;
+        }
         if (state.seen(nextPlace)) {
           count("no_backtrack");
           continue;
         }
         const newPosition = state.doMove(nextPlace, cost).doToggle(nextPlace);
-        if (cost > (steps - state.time)) {
-          count("time_exceeded")
-          continue
-        };
+        if (cost > steps - state.time) {
+          count("time_exceeded");
+          continue;
+        }
         const posLabel =
           nextPlace + "+" + newPosition.label + "@" + newPosition.time;
         if (
@@ -332,30 +331,293 @@ const part1Search = (map: PipeMap, steps = 30) => {
     };
   };
   const result = runSearch(
-    initialState,
+    [initialState],
     searcher(),
     (state) => state.time > steps,
     {
       priority: (a, b) => a.time - b.time,
     }
   );
+  // console.log({ counters });
+  return result;
+};
+
+class State2 {
+  label: string;
+
+  constructor(
+    private junctions: PipeMap,
+    public elfPaths: Record<string, [string, number, Junction][]>,
+    public elephantPaths: Record<string, [string, number, Junction][]>,
+    public elfPosition: string = "AA",
+    public elephantPosition: string = "AA",
+    public score: number = 0,
+    public elfTime: number = 1,
+    public elephantTime: number = 1,
+    public openAt: Record<string, number> = {},
+    public log: string[] = []
+  ) {
+    this.updateLabel();
+  }
+
+  get id() {
+    return this.label + "@" + this.elfTime + "@" + this.elephantTime;
+  }
+
+  copy(): State2 {
+    return new State2(
+      this.junctions,
+      this.elfPaths,
+      this.elephantPaths,
+      this.elfPosition,
+      this.elephantPosition,
+      this.score,
+      this.elfTime,
+      this.elephantTime,
+      { ...this.openAt },
+      [...this.log]
+    );
+  }
+
+  seen(nextPlace: string): boolean {
+    return false;
+  }
+
+  doMoveElf(nextPlace: string, cost: number): State2 {
+    if (nextPlace in this.openAt) throw "oops already open " + nextPlace;
+    const next = this.copy();
+    next.log.push(`minute ${this.elfTime} elf move ${nextPlace} /${cost}`);
+    next.elfTime += cost + 1;
+    next.elfPosition = nextPlace;
+    next.openAt[nextPlace] = next.elfTime;
+    return next;
+  }
+
+  doMoveElephant(nextPlace: string, cost: number): State2 {
+    if (nextPlace in this.openAt) throw "oops already open " + nextPlace;
+    const next = this.copy();
+    next.log.push(`minute ${this.elephantTime} elephant move ${nextPlace} /${cost}`);
+    next.elephantTime += cost + 1;
+    next.elephantPosition = nextPlace;
+    next.openAt[nextPlace] = next.elephantTime;
+    return next;
+  }
+
+  waitElephant(time: number): State2 {
+    const next = this.copy();
+    next.log.push(`minute ${this.elephantTime} elephant wait ${time}`);
+    next.elephantTime += time;
+    return next;
+  }
+
+  waitElf(time: number): State2 {
+    const next = this.copy();
+    next.log.push(`minute ${this.elfTime} elf wait ${time}`);
+    next.elfTime += time;
+    return next;
+  }
+
+  updateLabel() {
+    this.label =
+      Object.keys(this.openAt).sort().join(",") +
+      "@" +
+      this.elfTime +
+      "@" +
+      this.elephantTime +
+      "+" +
+      this.elfPosition +
+      "+" +
+      this.elephantPosition;
+  }
+
+  updateScore(steps: number): number {
+    this.score = R.sum(
+      Object.entries(this.openAt).map(
+        ([node, time]) =>
+          this.junctions.filter((j) => j.name == node)[0].flowRate *
+          (steps - time + 1)
+      )
+    );
+    // if (this.score != 0) throw "oops got score" + this.score
+    return this.score;
+  }
+}
+
+const part2Search = (map: PipeMap, steps = 26) => {
+  const counters: Record<string, number> = {};
+  const count = (n: string) => {
+    if (!(n in counters)) {
+      counters[n] = 0;
+    }
+    counters[n] += 1;
+  };
+
+  const junctions: Record<string, Junction> = Object.fromEntries(
+    map.map((junction) => [junction.name, junction])
+  );
+  const allPaths: Record<string, [string, number, Junction][]> = {};
+
+  const shortestPaths = buildShortestPathMatrix(map);
+  for (const fromNode of Object.keys(shortestPaths)) {
+    const junction = junctions[fromNode];
+    allPaths[junction.name] = Object.entries(shortestPaths[junction.name]).map(
+      ([toNode, cost]) => [toNode, cost, junctions[toNode]]
+    );
+  }
+
+  const filterNodes = (allPaths, nodes) => {
+    const result = {};
+    for (const key of nodes) {
+      result[key] = allPaths[key].filter((path) => nodes.includes(path[0]));
+    }
+    return result;
+  };
+  const initialStates: State2[] = [];
+  const fromNodes = Object.keys(allPaths);
+  for (const n of R.range(0, 2 ** fromNodes.length)) {
+    const key = n.toString(2);
+    const elfNodes = [
+      "AA",
+      ...fromNodes.filter((node, idx) => key[idx] == "1"),
+    ];
+    const elephantNodes = [
+      "AA",
+      ...fromNodes.filter((node, idx) => key[idx] != "1"),
+    ];
+    const elfPaths = filterNodes(allPaths, elfNodes);
+    const elephantPaths = filterNodes(allPaths, elephantNodes);
+
+    initialStates.push(new State2(map, elfPaths, elephantPaths));
+  }
+
+  const searcher = () => {
+    const scoreWhenOpen: Record<string, number> = {};
+    const scoreWhenAt: Record<string, number> = {};
+
+    return (state: State2) => {
+      /**
+       * algorithm
+       * - search at AA
+       * to search:
+       * - options = moves + switch (if flowRate != 0)
+       * - for each option, from the most time remaining
+       *   - if time is at the limit then check if it's the best solution. if yes, keep it.
+       *   - if this new option is the best way to reach that place + value setup then search
+       * -
+       */
+      const elfNode = junctions[state.elfPosition];
+      const elephantNode = junctions[state.elephantPosition];
+      if (state.elfTime > 50) throw "oops elf time " + JSON.stringify(state);
+      if (state.elephantTime > 50)
+        throw "oops elephant time " + JSON.stringify(state);
+      const choices: State2[] = [];
+      let acted = false;
+      if (state.elephantTime < state.elfTime) {
+        for (const [nextPlace, cost, junction] of state.elephantPaths[
+          elephantNode.name
+        ]) {
+          if (nextPlace in state.openAt) {
+            count("elephant_already_open");
+            continue;
+          }
+          const newPosition = state.doMoveElephant(nextPlace, cost);
+          if (cost > steps - state.elephantTime) {
+            count("elephant_time_exceeded");
+            continue;
+          }
+          newPosition.updateScore(steps);
+          const posLabel = newPosition.label + "+f" + state.elfPosition;
+          if (
+            false &&
+            posLabel in scoreWhenAt &&
+            scoreWhenAt[posLabel] >= newPosition.score
+          ) {
+            // loop protection
+            count("elephant_non_optimal");
+            continue;
+          } else {
+            scoreWhenAt[posLabel] = newPosition.score;
+            count("elephant_move");
+            choices.push(newPosition);
+            acted = true;
+          }
+        }
+        if (!acted) {
+          count("elephant_wait");
+          choices.push(state.waitElephant(steps - state.elephantTime + 3));
+        }
+      } else {
+        for (const [nextPlace, cost, junction] of state.elfPaths[
+          elfNode.name
+        ]) {
+          if (nextPlace in state.openAt) {
+            count("elf_already_open");
+            continue;
+          }
+          if (state.seen(nextPlace)) {
+            count("elf_no_backtrack");
+            continue;
+          }
+          const newPosition = state.doMoveElf(nextPlace, cost);
+          if (cost > steps - state.elfTime) {
+            count("elf_time_exceeded");
+            continue;
+          }
+          newPosition.updateScore(steps);
+          const posLabel = newPosition.label;
+          if (
+            false &&
+            posLabel in scoreWhenAt &&
+            scoreWhenAt[posLabel] >= newPosition.score
+          ) {
+            // loop protection
+            count("elf_non_optimal");
+            continue;
+          } else {
+            scoreWhenAt[posLabel] = newPosition.score;
+            count("elf_move");
+            choices.push(newPosition);
+            acted = true;
+          }
+        }
+        if (!acted) {
+          count("elf_wait");
+          choices.push(state.waitElf(steps - state.elfTime + 3));
+        }
+      }
+      for (const c of choices) {
+        c.updateScore(steps);
+      }
+      return choices;
+    };
+  };
+  const result = runSearch(
+    initialStates,
+    searcher(),
+    (state) => Math.min(state.elfTime, state.elephantTime) > steps,
+    {
+      priority: (a, b) =>
+        a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
+    }
+  );
   console.log({ counters });
   return result;
 };
+
 const runSearch = <State extends BasicState>(
-  initialState: State,
+  initialStates: State[],
   choices: (state: State) => State[],
   isComplete: (state: State) => boolean,
   { priority }: { priority?: (me: State, other: State) => number } = {}
 ): State => {
   const stateHeap = new Heap<State>(priority);
-  stateHeap.push(initialState);
+  for (const initialState of initialStates) stateHeap.push(initialState);
   const scoreWhenOpen: Record<string, number> = {};
   const scoreWhenAt: Record<string, number> = {};
 
-  let best: State = initialState;
+  let best: State = initialStates[0];
 
-  let limit = 1_000_000;
+  let limit = 4_000_000;
   let stepCount = 0;
   const visited: Record<string, number> = {};
   while (stateHeap.size()) {
@@ -406,9 +668,16 @@ const parse = (text: string): PipeMap => {
 
 const part1 = (map: PipeMap) => {
   const result = part1Search(map);
-  console.log({ msg: "part 1 done", result });
+  // console.log({ msg: "part 1 done", result });
   return result.score;
 };
+
+const part2 = (map: PipeMap) => {
+  const result = part2Search(map);
+  // console.log({ msg: "part 2 done", result });
+  return result.score;
+};
+
 describe("day 16", () => {
   it("parses", () => {
     expect(parse(testData)[0]).toStrictEqual({
@@ -543,7 +812,7 @@ describe("day 16", () => {
     });
   });
 
-  describe("part 1", () => {
+  describe.skip("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(1651);
     });
@@ -552,6 +821,16 @@ describe("day 16", () => {
       expect(part1(parse(data))).toBe(1720);
       // 1718 too low
       // 1834 too high
+    });
+  });
+
+  describe("part 2", () => {
+    it("sample", () => {
+      expect(part2(parse(testData))).toBe(1707);
+    });
+
+    it("answer", () => {
+      expect(part2(parse(data))).toBe(-1);
     });
   });
 });
