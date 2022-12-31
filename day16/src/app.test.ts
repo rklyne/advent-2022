@@ -115,7 +115,7 @@ const search = (map: PipeMap, steps = 30): State => {
   let best: State = initialState;
   const search = (state: State) => {
     if (state.time > steps) {
-      if (state.score >= best.score) {
+      if (state.score > best.score) {
         best = state;
       }
       return;
@@ -123,45 +123,52 @@ const search = (map: PipeMap, steps = 30): State => {
     const node = junctions[state.position];
     if (node.flowRate != 0 && !state.open.includes(node.name)) {
       const newOpen = state.doToggle(node.name);
+      const scoreWhenOpenLabel = newOpen.label; // + "@" + newOpen.time
       if (
-        newOpen.label in scoreWhenOpen &&
-        scoreWhenOpen[newOpen.label] > projectedScore(newOpen)
+        scoreWhenOpenLabel in scoreWhenOpen &&
+        scoreWhenOpen[scoreWhenOpenLabel] > projectedScore(newOpen)
       ) {
         // loop protection
         return;
       } else {
-        scoreWhenOpen[newOpen.label] = projectedScore(newOpen);
+        scoreWhenOpen[scoreWhenOpenLabel] = newOpen.score
       }
       stateHeap.push(newOpen);
     }
 
     for (const [nextPlace, cost, junction] of paths[node.name]) {
       const newPosition = state.doMove(nextPlace, cost);
-      const posLabel = nextPlace + "+" + state.label;
+      const posLabel = nextPlace + "+" + newPosition.label + "@" + newPosition.time;
       if (
         posLabel in scoreWhenAt &&
         scoreWhenAt[posLabel] >= projectedScore(newPosition)
       ) {
         // loop protection
+        // if (node.name == "EE" && state.label == "BB,DD,JJ") throw "oops skip EE"
         return;
       } else {
-        scoreWhenAt[posLabel] = projectedScore(newPosition)
+        // if (node.name == "EE" && state.label == "BB,DD,JJ") throw "oops no skip EE " + nextPlace
+        scoreWhenAt[posLabel] = newPosition.score
       }
+      // if (node.name == "EE" && state.label == "BB,DD,HH,JJ") throw "oops skip EE " + state.log.join("\n")
+
       stateHeap.push(newPosition);
     }
   };
 
   let limit = 2_000_000;
+  let stepCount = 0;
   while (stateHeap.size()) {
     const state = stateHeap.pop();
     search(state);
     limit--;
+    stepCount++;
     if (limit == 0) {
       console.log({ best, state, len: stateHeap.size() });
       throw "limit break";
     }
   }
-
+  console.log({ stepCount });
   return best;
 };
 
@@ -179,8 +186,8 @@ const search = (map: PipeMap, steps = 30): State => {
 const parse = (text: string): PipeMap => {
   //Valve CC has flow rate=2; tunnels lead to valves DD, BB
   //
-  return text.split("\n").map((line) => {
-    const bits = line.split(/[ =;]/g);
+  return text.trim().split("\n").map((line) => {
+    const bits = line.trim().split(/[ =;]/g);
     return {
       moves: line
         .split("valve")[1]
@@ -208,7 +215,31 @@ describe("day 16", () => {
     });
   });
 
-  describe("part 1", () => {
+  describe("test cases from reddit", () => {
+    it("can solve a line", () => {
+      const inData = `
+      Valve LA has flow rate=22; tunnels lead to valves KA, MA
+      Valve MA has flow rate=24; tunnels lead to valves LA, NA
+      Valve NA has flow rate=26; tunnels lead to valves MA, OA
+      Valve OA has flow rate=28; tunnels lead to valves NA, PA
+      Valve PA has flow rate=30; tunnels lead to valves OA
+      Valve AA has flow rate=0; tunnels lead to valves BA
+      Valve BA has flow rate=2; tunnels lead to valves AA, CA
+      Valve CA has flow rate=4; tunnels lead to valves BA, DA
+      Valve DA has flow rate=6; tunnels lead to valves CA, EA
+      Valve EA has flow rate=8; tunnels lead to valves DA, FA
+      Valve FA has flow rate=10; tunnels lead to valves EA, GA
+      Valve GA has flow rate=12; tunnels lead to valves FA, HA
+      Valve HA has flow rate=14; tunnels lead to valves GA, IA
+      Valve IA has flow rate=16; tunnels lead to valves HA, JA
+      Valve JA has flow rate=18; tunnels lead to valves IA, KA
+      Valve KA has flow rate=20; tunnels lead to valves JA, LA
+      `;
+      expect(part1(parse(inData))).toBe(2640)
+    })
+  })
+
+  describe.skip("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(1651);
     });
