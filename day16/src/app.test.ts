@@ -361,7 +361,7 @@ class State2 {
   }
 
   get id() {
-    return this.label + "@" + this.elfTime + "@" + this.elephantTime;
+    return this.label;
   }
 
   copy(): State2 {
@@ -386,7 +386,11 @@ class State2 {
   doMoveElf(nextPlace: string, cost: number): State2 {
     if (nextPlace in this.openAt) throw "oops already open " + nextPlace;
     const next = this.copy();
-    next.log.push(`minute ${this.elfTime} elf move ${nextPlace} /${cost}`);
+    next.log.push(
+      `minute ${this.elfTime} elf move ${nextPlace} /${cost} + minute ${
+        this.elfTime + cost + 1
+      }`
+    );
     next.elfTime += cost + 1;
     next.elfPosition = nextPlace;
     next.openAt[nextPlace] = next.elfTime;
@@ -396,7 +400,13 @@ class State2 {
   doMoveElephant(nextPlace: string, cost: number): State2 {
     if (nextPlace in this.openAt) throw "oops already open " + nextPlace;
     const next = this.copy();
-    next.log.push(`minute ${this.elephantTime} elephant move ${nextPlace} /${cost}`);
+    next.log.push(
+      `minute ${
+        this.elephantTime
+      } elephant move ${nextPlace} /${cost} + minute ${
+        this.elephantTime + cost + 1
+      }`
+    );
     next.elephantTime += cost + 1;
     next.elephantPosition = nextPlace;
     next.openAt[nextPlace] = next.elephantTime;
@@ -418,16 +428,27 @@ class State2 {
   }
 
   updateLabel() {
+    const times = "+" + this.elfTime + "+" + this.elephantTime;
+    const positions = "+" + this.elfPosition + "+" + this.elephantPosition;
+    // this.label =
+    //   Object.keys(this.openAt).sort().join(",") +
+    //   "@" +
+    //   this.elfTime +
+    //   "@" +
+    //   this.elephantTime
+    //   // + positions
     this.label =
-      Object.keys(this.openAt).sort().join(",") +
-      "@" +
-      this.elfTime +
-      "@" +
-      this.elephantTime +
-      "+" +
-      this.elfPosition +
-      "+" +
-      this.elephantPosition;
+      this.elfPaths[this.elfPosition]
+        .map((tpl) => tpl[0])
+        .filter((n) => !(n in this.openAt))
+        .join(",") +
+      "|" +
+      this.elephantPaths[this.elephantPosition]
+        .map((tpl) => tpl[0])
+        .filter((n) => !(n in this.openAt))
+        .join(",") +
+      "|" + positions
+      "|" + times;
   }
 
   updateScore(steps: number): number {
@@ -443,7 +464,7 @@ class State2 {
   }
 }
 
-const part2Search = (map: PipeMap, steps = 26) => {
+const makeCounters = () => {
   const counters: Record<string, number> = {};
   const count = (n: string) => {
     if (!(n in counters)) {
@@ -451,6 +472,11 @@ const part2Search = (map: PipeMap, steps = 26) => {
     }
     counters[n] += 1;
   };
+  return { count, counters };
+};
+
+const part2Search = (map: PipeMap, steps = 26) => {
+  const { count, counters } = makeCounters();
 
   const junctions: Record<string, Junction> = Object.fromEntries(
     map.map((junction) => [junction.name, junction])
@@ -490,6 +516,24 @@ const part2Search = (map: PipeMap, steps = 26) => {
     initialStates.push(new State2(map, elfPaths, elephantPaths));
   }
 
+  const bestPossibleScore = (state: State2): number => {
+    const elfScore = R.sum(
+      state.elfPaths[state.elfPosition].map(([name, cost, junction]) => {
+        if (name in state.openAt) return 0;
+        return junction.flowRate * (steps - state.elfTime - cost + 2);
+      })
+    );
+    const elephantScore = R.sum(
+      state.elephantPaths[state.elephantPosition].map(
+        ([name, cost, junction]) => {
+          if (name in state.openAt) return 0;
+          return junction.flowRate * (steps - state.elephantTime - cost + 2);
+        }
+      )
+    );
+    return elfScore + elephantScore + state.score;
+  };
+
   const searcher = () => {
     const scoreWhenOpen: Record<string, number> = {};
     const scoreWhenAt: Record<string, number> = {};
@@ -526,21 +570,9 @@ const part2Search = (map: PipeMap, steps = 26) => {
             continue;
           }
           newPosition.updateScore(steps);
-          const posLabel = newPosition.label + "+f" + state.elfPosition;
-          if (
-            false &&
-            posLabel in scoreWhenAt &&
-            scoreWhenAt[posLabel] >= newPosition.score
-          ) {
-            // loop protection
-            count("elephant_non_optimal");
-            continue;
-          } else {
-            scoreWhenAt[posLabel] = newPosition.score;
-            count("elephant_move");
-            choices.push(newPosition);
-            acted = true;
-          }
+          count("elephant_move");
+          choices.push(newPosition);
+          acted = true;
         }
         if (!acted) {
           count("elephant_wait");
@@ -564,21 +596,9 @@ const part2Search = (map: PipeMap, steps = 26) => {
             continue;
           }
           newPosition.updateScore(steps);
-          const posLabel = newPosition.label;
-          if (
-            false &&
-            posLabel in scoreWhenAt &&
-            scoreWhenAt[posLabel] >= newPosition.score
-          ) {
-            // loop protection
-            count("elf_non_optimal");
-            continue;
-          } else {
-            scoreWhenAt[posLabel] = newPosition.score;
-            count("elf_move");
-            choices.push(newPosition);
-            acted = true;
-          }
+          count("elf_move");
+          choices.push(newPosition);
+          acted = true;
         }
         if (!acted) {
           count("elf_wait");
@@ -596,11 +616,14 @@ const part2Search = (map: PipeMap, steps = 26) => {
     searcher(),
     (state) => Math.min(state.elfTime, state.elephantTime) > steps,
     {
-      priority: (a, b) =>
-        a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
+      // work on highest first, to maximise score based pruning
+      priority: (b, a) =>
+        a.score - b.score,
+        // a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
+      bestPossibleScore,
+      maxSteps: 2_000_000,
     }
   );
-  console.log({ counters });
   return result;
 };
 
@@ -608,40 +631,61 @@ const runSearch = <State extends BasicState>(
   initialStates: State[],
   choices: (state: State) => State[],
   isComplete: (state: State) => boolean,
-  { priority }: { priority?: (me: State, other: State) => number } = {}
+  {
+    priority,
+    bestPossibleScore,
+    maxSteps,
+  }: {
+    priority?: (me: State, other: State) => number;
+    bestPossibleScore?: (s: State) => number;
+    maxSteps?: number;
+  } = {}
 ): State => {
+  const { count, counters } = makeCounters();
   const stateHeap = new Heap<State>(priority);
   for (const initialState of initialStates) stateHeap.push(initialState);
-  const scoreWhenOpen: Record<string, number> = {};
-  const scoreWhenAt: Record<string, number> = {};
 
   let best: State = initialStates[0];
 
-  let limit = 4_000_000;
+  let limit = maxSteps ?? 5_000;
   let stepCount = 0;
   const visited: Record<string, number> = {};
+
   while (stateHeap.size()) {
     const state = stateHeap.pop();
+    limit--;
+    stepCount++;
     if (isComplete(state)) {
+      count("complete");
       if (state.score > best.score) {
         best = state;
+        count("new_best");
+        console.log({ msg: "found new best score", score: state.score });
       }
       continue;
     }
+    if (bestPossibleScore && bestPossibleScore(state) <= best.score) {
+      // throw "oops couldn't beat best"
+      count("cannot_beat_best");
+      continue;
+    }
     for (const choice of choices(state)) {
-      if (choice.id in visited && visited[choice.id] > choice.score) continue;
-      visited[choice.id] = choice.score;
+      if (choice.id) {
+        if (choice.id in visited && visited[choice.id] > choice.score) {
+          count("visited");
+          continue;
+        }
+        visited[choice.id] = choice.score;
+      }
       stateHeap.push(choice);
     }
-    limit--;
-    stepCount++;
     if (limit == 0) {
       console.log({ best, state, len: stateHeap.size() });
       console.log("LIMIT BREAK");
       throw "limit break";
     }
   }
-  console.log({ stepCount });
+  console.log({ stepCount, counters });
   return best;
 };
 
@@ -831,6 +875,7 @@ describe("day 16", () => {
 
     it("answer", () => {
       expect(part2(parse(data))).toBe(-1);
+      // 2313 too low
     });
   });
 });
