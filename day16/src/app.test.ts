@@ -394,6 +394,7 @@ class State2 {
     next.elfTime += cost + 1;
     next.elfPosition = nextPlace;
     next.openAt[nextPlace] = next.elfTime;
+    next.updateLabel()
     return next;
   }
 
@@ -410,6 +411,7 @@ class State2 {
     next.elephantTime += cost + 1;
     next.elephantPosition = nextPlace;
     next.openAt[nextPlace] = next.elephantTime;
+    next.updateLabel()
     return next;
   }
 
@@ -417,6 +419,7 @@ class State2 {
     const next = this.copy();
     next.log.push(`minute ${this.elephantTime} elephant wait ${time}`);
     next.elephantTime += time;
+    next.updateLabel()
     return next;
   }
 
@@ -424,6 +427,7 @@ class State2 {
     const next = this.copy();
     next.log.push(`minute ${this.elfTime} elf wait ${time}`);
     next.elfTime += time;
+    next.updateLabel()
     return next;
   }
 
@@ -438,17 +442,19 @@ class State2 {
     //   this.elephantTime
     //   // + positions
     this.label =
-      this.elfPaths[this.elfPosition]
+      this.elfPaths["AA"]
         .map((tpl) => tpl[0])
-        .filter((n) => !(n in this.openAt))
+        .filter((n) => n in this.openAt)
         .join(",") +
       "|" +
-      this.elephantPaths[this.elephantPosition]
+      this.elephantPaths["AA"]
         .map((tpl) => tpl[0])
-        .filter((n) => !(n in this.openAt))
+        .filter((n) => n in this.openAt)
         .join(",") +
-      "|" + positions
-      "|" + times;
+      "|" +
+      positions +
+      "|" +
+      times;
   }
 
   updateScore(steps: number): number {
@@ -463,6 +469,28 @@ class State2 {
     return this.score;
   }
 }
+const part1SearchState2 = (map: PipeMap, steps = 30) => {
+  const junctions: Record<string, Junction> = Object.fromEntries(
+    map.map((junction) => [junction.name, junction])
+  );
+  const allPaths: Record<string, [string, number, Junction][]> = {};
+
+  const shortestPaths = buildShortestPathMatrix(map);
+  for (const fromNode of Object.keys(shortestPaths)) {
+    const junction = junctions[fromNode];
+    allPaths[junction.name] = Object.entries(shortestPaths[junction.name]).map(
+      ([toNode, cost]) => [toNode, cost, junctions[toNode]]
+    );
+  }
+  const initialState = new State2(map, allPaths, {});
+  const counters: Record<string, number> = {};
+  const count = (n: string) => {
+    if (!(n in counters)) {
+      counters[n] = 0;
+    }
+    counters[n] += 1;
+  };
+};
 
 const makeCounters = () => {
   const counters: Record<string, number> = {};
@@ -475,7 +503,7 @@ const makeCounters = () => {
   return { count, counters };
 };
 
-const part2Search = (map: PipeMap, steps = 26) => {
+const part2Search = (map: PipeMap, hasElephant = true, steps = 26) => {
   const { count, counters } = makeCounters();
 
   const junctions: Record<string, Junction> = Object.fromEntries(
@@ -500,34 +528,45 @@ const part2Search = (map: PipeMap, steps = 26) => {
   };
   const initialStates: State2[] = [];
   const fromNodes = Object.keys(allPaths);
-  for (const n of R.range(0, 2 ** fromNodes.length)) {
-    const key = n.toString(2);
-    const elfNodes = [
-      "AA",
-      ...fromNodes.filter((node, idx) => key[idx] == "1"),
-    ];
-    const elephantNodes = [
-      "AA",
-      ...fromNodes.filter((node, idx) => key[idx] != "1"),
-    ];
-    const elfPaths = filterNodes(allPaths, elfNodes);
-    const elephantPaths = filterNodes(allPaths, elephantNodes);
+  const leftPad = (s: string, pad: string, n: number): string => {
+    const result = pad.repeat(n - s.length) + s;
+    if (result.length != n) throw "oops " + n + " " + result;
+    return result;
+  };
+  if (hasElephant) {
+    for (const n of R.range(0, 2 ** fromNodes.length)) {
+      const key = leftPad(n.toString(2), "0", fromNodes.length);
+      const elfNodes = [
+        "AA",
+        ...fromNodes.filter((node, idx) => key[idx] == "1"),
+      ];
+      const elephantNodes = [
+        "AA",
+        ...fromNodes.filter((node, idx) => key[idx] != "1"),
+      ];
+      const elfPaths = filterNodes(allPaths, elfNodes);
+      const elephantPaths = filterNodes(allPaths, elephantNodes);
 
-    initialStates.push(new State2(map, elfPaths, elephantPaths));
+      initialStates.push(new State2(map, elfPaths, elephantPaths));
+    }
+  } else {
+    initialStates.push(new State2(map, allPaths, { AA: [] }));
   }
 
   const bestPossibleScore = (state: State2): number => {
+    state.updateScore(steps);
+    const offsetCost = 7;
     const elfScore = R.sum(
       state.elfPaths[state.elfPosition].map(([name, cost, junction]) => {
         if (name in state.openAt) return 0;
-        return junction.flowRate * (steps - state.elfTime - cost + 2);
+        return junction.flowRate * (steps - state.elfTime);
       })
     );
     const elephantScore = R.sum(
       state.elephantPaths[state.elephantPosition].map(
         ([name, cost, junction]) => {
           if (name in state.openAt) return 0;
-          return junction.flowRate * (steps - state.elephantTime - cost + 2);
+          return junction.flowRate * (steps - state.elephantTime);
         }
       )
     );
@@ -617,9 +656,9 @@ const part2Search = (map: PipeMap, steps = 26) => {
     (state) => Math.min(state.elfTime, state.elephantTime) > steps,
     {
       // work on highest first, to maximise score based pruning
+      // priority: (b, a) => a.score - b.score,
       priority: (b, a) =>
-        a.score - b.score,
-        // a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
+        a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
       bestPossibleScore,
       maxSteps: 2_000_000,
     }
@@ -660,23 +699,23 @@ const runSearch = <State extends BasicState>(
       if (state.score > best.score) {
         best = state;
         count("new_best");
-        console.log({ msg: "found new best score", score: state.score });
+        // console.log({ msg: "found new best score", score: state.score });
       }
       continue;
     }
-    if (bestPossibleScore && bestPossibleScore(state) <= best.score) {
+    if (bestPossibleScore && bestPossibleScore(state) < best.score) {
       // throw "oops couldn't beat best"
       count("cannot_beat_best");
       continue;
     }
     for (const choice of choices(state)) {
-      if (choice.id) {
-        if (choice.id in visited && visited[choice.id] > choice.score) {
-          count("visited");
-          continue;
-        }
-        visited[choice.id] = choice.score;
+      if (choice.id in visited && visited[choice.id] > choice.score) {
+        // console.log({id: choice.id, score: choice.score, oldScore: visited[choice.id], choice})
+        // throw "oops bad rejection"
+        count("visited");
+        continue;
       }
+      visited[choice.id] = choice.score;
       stateHeap.push(choice);
     }
     if (limit == 0) {
@@ -711,8 +750,9 @@ const parse = (text: string): PipeMap => {
 };
 
 const part1 = (map: PipeMap) => {
-  const result = part1Search(map);
-  // console.log({ msg: "part 1 done", result });
+  // const result = part1Search(map);
+  const result = part2Search(map, false, 30);
+  console.log({ msg: "part 1 done", score: result.score, log: result.log });
   return result.score;
 };
 
@@ -754,6 +794,9 @@ describe("day 16", () => {
       it("part1", () => {
         expect(part1(parse(inData))).toBe(2640);
       });
+      it("part2", () => {
+        expect(part2(parse(inData))).toBe(2670);
+      });
     });
 
     describe("line, quadratic rates", () => {
@@ -778,6 +821,9 @@ describe("day 16", () => {
       it("part1", () => {
         expect(part1(parse(inData))).toBe(13468);
       });
+      it("part2", () => {
+        expect(part2(parse(inData))).toBe(12887);
+      });
     });
 
     describe("circle", () => {
@@ -801,6 +847,9 @@ describe("day 16", () => {
       `;
       it("part1", () => {
         expect(part1(parse(inData))).toBe(1288);
+      });
+      it("part2", () => {
+        expect(part2(parse(inData))).toBe(1484);
       });
     });
 
@@ -853,18 +902,19 @@ describe("day 16", () => {
       it("part1", () => {
         expect(part1(parse(inData))).toBe(2400);
       });
+      it("part2", () => {
+        expect(part2(parse(inData))).toBe(3680);
+      });
     });
   });
 
-  describe.skip("part 1", () => {
+  describe("part 1", () => {
     it("sample", () => {
       expect(part1(parse(testData))).toBe(1651);
     });
 
     it("answer", () => {
       expect(part1(parse(data))).toBe(1720);
-      // 1718 too low
-      // 1834 too high
     });
   });
 
@@ -876,6 +926,8 @@ describe("day 16", () => {
     it("answer", () => {
       expect(part2(parse(data))).toBe(-1);
       // 2313 too low
+      // 2318 too low
+      // 2578 ??
     });
   });
 });
