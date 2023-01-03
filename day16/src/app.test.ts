@@ -394,7 +394,7 @@ class State2 {
     next.elfTime += cost + 1;
     next.elfPosition = nextPlace;
     next.openAt[nextPlace] = next.elfTime;
-    next.updateLabel()
+    next.updateLabel();
     return next;
   }
 
@@ -411,7 +411,7 @@ class State2 {
     next.elephantTime += cost + 1;
     next.elephantPosition = nextPlace;
     next.openAt[nextPlace] = next.elephantTime;
-    next.updateLabel()
+    next.updateLabel();
     return next;
   }
 
@@ -419,7 +419,7 @@ class State2 {
     const next = this.copy();
     next.log.push(`minute ${this.elephantTime} elephant wait ${time}`);
     next.elephantTime += time;
-    next.updateLabel()
+    next.updateLabel();
     return next;
   }
 
@@ -427,12 +427,12 @@ class State2 {
     const next = this.copy();
     next.log.push(`minute ${this.elfTime} elf wait ${time}`);
     next.elfTime += time;
-    next.updateLabel()
+    next.updateLabel();
     return next;
   }
 
   updateLabel() {
-    const times = "+" + this.elfTime + "+" + this.elephantTime;
+    const times = false ? "" : "+" + this.elfTime + "+" + this.elephantTime;
     const positions = "+" + this.elfPosition + "+" + this.elephantPosition;
     // this.label =
     //   Object.keys(this.openAt).sort().join(",") +
@@ -704,14 +704,11 @@ const runSearch = <State extends BasicState>(
       continue;
     }
     if (bestPossibleScore && bestPossibleScore(state) < best.score) {
-      // throw "oops couldn't beat best"
       count("cannot_beat_best");
       continue;
     }
     for (const choice of choices(state)) {
       if (choice.id in visited && visited[choice.id] > choice.score) {
-        // console.log({id: choice.id, score: choice.score, oldScore: visited[choice.id], choice})
-        // throw "oops bad rejection"
         count("visited");
         continue;
       }
@@ -924,10 +921,8 @@ describe("day 16", () => {
     });
 
     it("answer", () => {
-      expect(part2(parse(data))).toBe(-1);
-      // 2313 too low
-      // 2318 too low
-      // 2578 ??
+      expect(part2(parse(data))).toBe(2582);
+      // in 61346.163 s
     });
   });
 });
