@@ -432,7 +432,7 @@ class State2 {
   }
 
   updateLabel() {
-    const times = false ? "" : "+" + this.elfTime + "+" + this.elephantTime;
+    const times = false ? "+" + this.elfTime + "+" + this.elephantTime: "";
     const positions = "+" + this.elfPosition + "+" + this.elephantPosition;
     // this.label =
     //   Object.keys(this.openAt).sort().join(",") +
@@ -555,18 +555,18 @@ const part2Search = (map: PipeMap, hasElephant = true, steps = 26) => {
 
   const bestPossibleScore = (state: State2): number => {
     state.updateScore(steps);
-    const offsetCost = 7;
+    const offsetCost = -7;
     const elfScore = R.sum(
       state.elfPaths[state.elfPosition].map(([name, cost, junction]) => {
         if (name in state.openAt) return 0;
-        return junction.flowRate * (steps - state.elfTime);
+        return junction.flowRate * (steps - (state.elfTime + cost + offsetCost));
       })
     );
     const elephantScore = R.sum(
       state.elephantPaths[state.elephantPosition].map(
         ([name, cost, junction]) => {
           if (name in state.openAt) return 0;
-          return junction.flowRate * (steps - state.elephantTime);
+          return junction.flowRate * (steps - (state.elephantTime + cost + offsetCost));
         }
       )
     );
@@ -660,7 +660,7 @@ const part2Search = (map: PipeMap, hasElephant = true, steps = 26) => {
       priority: (b, a) =>
         a.elfTime + a.elephantTime - (b.elfTime + b.elephantTime),
       bestPossibleScore,
-      maxSteps: 2_000_000,
+      maxSteps: 4_000_000,
     }
   );
   return result;
@@ -716,7 +716,7 @@ const runSearch = <State extends BasicState>(
       stateHeap.push(choice);
     }
     if (limit == 0) {
-      console.log({ best, state, len: stateHeap.size() });
+      console.log({ best, state, len: stateHeap.size(), stepCount });
       console.log("LIMIT BREAK");
       throw "limit break";
     }
@@ -923,6 +923,7 @@ describe("day 16", () => {
     it("answer", () => {
       expect(part2(parse(data))).toBe(2582);
       // in 61346.163 s
+      // in 30713.25 s
     });
   });
 });
